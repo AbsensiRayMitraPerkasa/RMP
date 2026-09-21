@@ -194,6 +194,13 @@
 </head>
 <body>
 
+<section id="screen-klien-invalid" class="screen center-screen hidden">
+  <div class="card login-card" style="text-align:center;">
+    <div style="font-size:40px; margin-bottom:8px;">🔒</div>
+    <h2 style="margin-bottom:8px;">Link Tidak Valid</h2>
+    <p class="muted" id="klien-invalid-pesan">Link absensi ini tidak valid atau sudah tidak aktif. Hubungi admin Anda untuk mendapatkan link yang benar.</p>
+  </div>
+</section>
 
 <section id="screen-login" class="screen center-screen">
   <div class="top-banner">
@@ -491,9 +498,11 @@
  
 const API_URL = 'https://rxmjsvzkciwgpdatgqkd.supabase.co/functions/v1/api';
 const LOGO_URL = 'icon-192.png'; 
+const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
 
  
 let sesi = { nama: '', pin: '', bagianKerja: '' };
+let klienValid = false;
 let cameraStreams = {};
 let daftarLokasiKerja = [];
 let daftarTitikPatroli = [];
@@ -512,7 +521,7 @@ async function api(action, payload) {
         'apikey': 'sb_publishable_Pd8aIKqO_vo-tZIm1ndvdg_yDlqVu40',
         'Authorization': 'Bearer TEMPEL_ANON_KEY_DI_SINI'
       },
-      body: JSON.stringify(Object.assign({ action }, payload || {}))
+      body: JSON.stringify(Object.assign({ action, kodeKlien: KODE_KLIEN }, payload || {}))
     });
     return await res.json();
   } catch (e) {
@@ -537,14 +546,33 @@ if (LOGO_URL) {
  
 
 
+function tampilkanLinkTidakValid(pesan) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  const nav = document.getElementById('navbar');
+  if (nav) nav.classList.add('hidden');
+  document.getElementById('klien-invalid-pesan').textContent = pesan || 'Link absensi ini tidak valid atau sudah tidak aktif. Hubungi admin Anda.';
+  document.getElementById('screen-klien-invalid').classList.remove('hidden');
+}
 async function muatInfoSistem() {
+  if (!KODE_KLIEN) {
+    tampilkanLinkTidakValid('Link absensi tidak lengkap. Pastikan Anda membuka link yang diberikan admin (harus mengandung ?klien=... di akhir URL).');
+    return;
+  }
   const res = await api('infoSistem', {});
-  const nama = (res && res.sukses && res.namaKlien) ? res.namaKlien : 'Sistem Absensi Karyawan';
+  if (!res.sukses) {
+    tampilkanLinkTidakValid(res.pesan);
+    return;
+  }
+  klienValid = true;
+  const nama = res.namaKlien || 'Sistem Absensi Karyawan';
   document.title = 'Absensi — ' + nama;
   const elLogin = document.getElementById('ttl-login');
   const elHome = document.getElementById('ttl-home');
   if (elLogin) elLogin.textContent = nama;
   if (elHome) elHome.textContent = nama;
+  if (res.logoUrl) {
+    document.querySelectorAll('.logo').forEach(el => { el.innerHTML = '<img src="' + res.logoUrl + '" alt="logo">'; });
+  }
 }
 
  
@@ -1152,9 +1180,12 @@ document.getElementById('btn-kirim-kegiatan').addEventListener('click', async ()
 });
 
  
-muatInfoSistem();
-muatDaftarNama();
-showScreen('login');
+(async () => {
+  await muatInfoSistem();
+  if (!klienValid) return; // layar "Link Tidak Valid" sudah ditampilkan di muatInfoSistem()
+  await muatDaftarNama();
+  showScreen('login');
+})();
 </script>
 </body>
 </html>
