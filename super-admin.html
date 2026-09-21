@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Absensi RAY — Super Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --border:#e3e7ee;
+    --navy:#17385c; --navy-dark:#0f2740; --navy-soft:#eaf0f6;
+    --tan:#e4d9c4; --tan-text:#8a7a5c;
+    --text:#1f2937; --muted:#7c8798;
+    --green-bg:#e7f7ee; --green-text:#1a9a56; --green:#1a9a56;
+    --red-bg:#fdecea; --red-text:#d5453a; --red:#d5453a;
+    --radius:14px; --radius-sm:10px;
+    --shadow:0 1px 2px rgba(16,30,54,.04), 0 4px 14px rgba(16,30,54,.06);
+    --f-body:'Inter',sans-serif; --f-mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:var(--f-body); min-height:100vh;}
+  h1,h2,h3,.display{font-weight:700; margin:0;}
+  .mono{font-family:var(--f-mono);}
+  .muted{color:var(--muted);}
+  .hidden{display:none !important;}
+  button,select,input{font-family:var(--f-body);}
+
+  .center-screen{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;}
+  .login-card{width:100%; max-width:380px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:26px; box-shadow:var(--shadow);}
+  .login-card .brand{font-size:12.5px; letter-spacing:1.5px; color:var(--muted); text-align:center; font-weight:700;}
+  .login-card h1{font-size:24px; text-align:center; margin-top:4px; margin-bottom:4px; color:var(--navy);}
+  .login-card p.muted{text-align:center; font-size:13px; margin-top:0;}
+
+  label{display:block; font-size:12.5px; color:var(--muted); font-weight:600; margin:12px 0 6px;}
+  label:first-child{margin-top:0;}
+  input[type=password],input[type=text],select{
+    width:100%; background:#fbfcfe; border:1px solid var(--border); color:var(--text);
+    padding:10px 11px; border-radius:var(--radius-sm); font-size:14px;
+  }
+  input:focus,select:focus,button:focus-visible{outline:2px solid var(--navy); outline-offset:1px;}
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    padding:10px 16px; border-radius:var(--radius-sm); border:1px solid transparent;
+    font-size:14px; font-weight:700; cursor:pointer; margin-top:12px; transition:opacity .15s, transform .1s;
+  }
+  .btn:active{transform:scale(.98);}
+  .btn:disabled{opacity:.45; cursor:not-allowed;}
+  .btn-navy,.btn-primary{background:var(--navy); color:#fff; width:100%;}
+  .btn-green{background:var(--green); color:#fff;}
+  .btn-outline{background:#fff; border-color:var(--border); color:var(--navy);}
+  .btn-danger{background:#fff; border-color:var(--red); color:var(--red);}
+  .btn-sm{padding:6px 12px; font-size:12.5px; margin-top:0; width:auto;}
+
+  .app{display:none;}
+  .app.show{display:block;}
+  header.top{
+    background:var(--card); border-bottom:1px solid var(--border);
+    padding:14px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:10;
+  }
+  header.top .display{font-size:19px; color:var(--navy);}
+  .role-tag{
+    font-family:var(--f-mono); font-size:11px; padding:2px 8px; border-radius:99px;
+    border:1px solid var(--navy); color:var(--navy); background:var(--navy-soft);
+  }
+  main{max-width:1000px; margin:0 auto; padding:22px 20px 60px;}
+
+  .panel{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:16px; box-shadow:var(--shadow);}
+  .section-title{font-size:15.5px; font-weight:700; margin-bottom:4px; color:var(--navy);}
+  .section-head{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;}
+
+  .klien-card{
+    background:var(--card); border:1px solid var(--border); border-left:3px solid var(--navy);
+    border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:10px; box-shadow:var(--shadow);
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;
+  }
+  .klien-card.nonaktif{border-left-color:var(--muted); opacity:.65;}
+  .klien-card .info .nama{font-weight:700; font-size:15px;}
+  .klien-card .info .kode{font-family:var(--f-mono); font-size:12px; color:var(--muted); margin-top:2px;}
+  .badge{font-size:11px; font-weight:700; padding:2px 9px; border-radius:99px; margin-left:8px; vertical-align:middle;}
+  .badge.aktif{background:var(--green-bg); color:var(--green-text);}
+  .badge.nonaktif{background:var(--red-bg); color:var(--red-text);}
+  .klien-card .actions{display:flex; gap:6px; flex-wrap:wrap;}
+
+  .empty-state{text-align:center; padding:40px 16px; color:var(--muted);}
+  .empty-state .big{font-size:32px; margin-bottom:6px;}
+
+  .toast{
+    position:fixed; right:20px; bottom:20px; max-width:340px; background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:12px 14px; font-size:13px; z-index:80; box-shadow:0 6px 20px rgba(16,30,54,.18);
+  }
+  .toast.ok{border-left:3px solid var(--green);}
+  .toast.err{border-left:3px solid var(--red);}
+
+  .modal-bg{
+    position:fixed; inset:0; background:rgba(15,39,64,.55); display:flex; align-items:center; justify-content:center;
+    z-index:60; padding:20px; overflow-y:auto;
+  }
+  .modal{background:var(--card); border-radius:var(--radius); padding:22px; max-width:400px; width:100%; box-shadow:var(--shadow); margin:auto;}
+  .modal h3{color:var(--navy); font-size:17px; margin-bottom:4px;}
+  .modal .close-row{display:flex; justify-content:flex-end;}
+  .modal .close-row button{background:none; border:none; font-size:18px; cursor:pointer; color:var(--muted); padding:2px 6px;}
+
+  .info-row{margin:14px 0;}
+  .info-row .lb{font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; margin-bottom:4px;}
+  .copy-row{display:flex; gap:6px;}
+  .copy-row input{flex:1; font-family:var(--f-mono); font-size:12.5px;}
+  .copy-row button{margin-top:0; flex:none;}
+  #qr-box{display:flex; justify-content:center; padding:14px; background:#fff; border-radius:var(--radius-sm); margin:10px 0;}
+</style>
+</head>
+<body>
+
+<section id="screen-login" class="center-screen">
+  <div class="login-card">
+    <div class="brand">PT. RAY MITRA PERKASA</div>
+    <h1>Super Admin</h1>
+    <p class="muted">Kelola semua klien dari satu tempat</p>
+    <label>Password Super Admin</label>
+    <input type="password" id="login-password" placeholder="Masukkan password">
+    <button class="btn btn-primary" id="btn-login">Masuk</button>
+  </div>
+</section>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="display">Super Admin <span class="role-tag">MASTER</span></div>
+    <button class="btn btn-danger btn-sm" id="btn-logout">Keluar</button>
+  </header>
+
+  <main>
+    <div class="panel">
+      <div class="section-head">
+        <div class="section-title">Daftar Klien</div>
+        <button class="btn btn-navy btn-sm" id="btn-buka-tambah">+ Tambah Klien Baru</button>
+      </div>
+      <div id="daftar-klien"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Modal: Tambah Klien -->
+<div class="modal-bg hidden" id="modal-tambah">
+  <div class="modal">
+    <div class="close-row"><button data-close="modal-tambah">✕</button></div>
+    <h3>Tambah Klien Baru</h3>
+    <label>Nama Klien</label>
+    <input type="text" id="tambah-nama" placeholder="Contoh: PT Sumber Makmur">
+    <label>Kode Klien (untuk link, otomatis dari nama)</label>
+    <input type="text" id="tambah-kode" placeholder="contoh: sumber-makmur">
+    <label>Password Admin Klien</label>
+    <div class="copy-row">
+      <input type="text" id="tambah-password" placeholder="Minimal 6 karakter">
+      <button class="btn btn-outline btn-sm" id="btn-acak-password" type="button">Acak</button>
+    </div>
+    <label>URL Logo (opsional)</label>
+    <input type="text" id="tambah-logo" placeholder="https://... (boleh dikosongkan)">
+    <button class="btn btn-navy" id="btn-simpan-tambah">Simpan &amp; Buat Klien</button>
+  </div>
+</div>
+
+<!-- Modal: Info & QR -->
+<div class="modal-bg hidden" id="modal-info">
+  <div class="modal">
+    <div class="close-row"><button data-close="modal-info">✕</button></div>
+    <h3 id="info-nama-klien">Nama Klien</h3>
+    <p class="muted" id="info-kode-klien" style="margin-top:2px;"></p>
+
+    <div id="qr-box"></div>
+
+    <div class="info-row">
+      <div class="lb">Link Absensi Karyawan</div>
+      <div class="copy-row">
+        <input type="text" id="info-link-absensi" readonly>
+        <button class="btn btn-outline btn-sm" data-copy="info-link-absensi" type="button">Salin</button>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="lb">Link Admin Klien</div>
+      <div class="copy-row">
+        <input type="text" id="info-link-admin" readonly>
+        <button class="btn btn-outline btn-sm" data-copy="info-link-admin" type="button">Salin</button>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="lb">Password Admin</div>
+      <div class="copy-row">
+        <input type="text" id="info-password" readonly>
+        <button class="btn btn-outline btn-sm" data-copy="info-password" type="button">Salin</button>
+      </div>
+    </div>
+    <button class="btn btn-outline" id="btn-unduh-qr" type="button">Unduh QR (PNG)</button>
+  </div>
+</div>
+
+<!-- Modal: Edit Klien -->
+<div class="modal-bg hidden" id="modal-edit">
+  <div class="modal">
+    <div class="close-row"><button data-close="modal-edit">✕</button></div>
+    <h3>Edit Klien</h3>
+    <label>Nama Klien</label>
+    <input type="text" id="edit-nama">
+    <label>URL Logo (opsional)</label>
+    <input type="text" id="edit-logo" placeholder="https://...">
+    <button class="btn btn-navy" id="btn-simpan-edit">Simpan Perubahan</button>
+  </div>
+</div>
+
+<!-- Modal: Reset Password -->
+<div class="modal-bg hidden" id="modal-reset">
+  <div class="modal">
+    <div class="close-row"><button data-close="modal-reset">✕</button></div>
+    <h3>Reset Password Admin</h3>
+    <p class="muted" id="reset-nama-klien" style="margin-top:2px;"></p>
+    <label>Password Baru</label>
+    <div class="copy-row">
+      <input type="text" id="reset-password" placeholder="Minimal 6 karakter">
+      <button class="btn btn-outline btn-sm" id="btn-acak-reset" type="button">Acak</button>
+    </div>
+    <button class="btn btn-navy" id="btn-simpan-reset">Reset Password</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script>
+const API_URL = 'https://rxmjsvzkciwgpdatgqkd.supabase.co/functions/v1/api';
+const SUPABASE_ANON_KEY = 'sb_publishable_Pd8aIKqO_vo-tZIm1ndvdg_yDlqVu40';
+
+let superPassword = '';
+let daftarKlien = [];
+let klienAktifSekarang = null; // dipakai modal edit/reset
+
+async function api(action, payload) {
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(Object.assign({ action, password: superPassword }, payload || {}))
+    });
+    return await res.json();
+  } catch (e) {
+    return { sukses: false, pesan: 'Gagal terhubung ke server.' };
+  }
+}
+function showToast(pesan, ok) {
+  const t = document.getElementById('toast');
+  t.textContent = pesan;
+  t.className = 'toast ' + (ok ? 'ok' : 'err');
+  t.classList.remove('hidden');
+  clearTimeout(showToast._tm);
+  showToast._tm = setTimeout(() => t.classList.add('hidden'), 3800);
+}
+function setBusy(btn, busy, labelBusy, labelNormal) {
+  btn.disabled = busy;
+  btn.textContent = busy ? (labelBusy || 'Memproses...') : labelNormal;
+}
+function bukaModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function tutupModal(id) { document.getElementById(id).classList.add('hidden'); }
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => tutupModal(btn.dataset.close));
+});
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', (e) => { if (e.target === bg) bg.classList.add('hidden'); });
+});
+
+function acakPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let out = '';
+  for (let i = 0; i < 10; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+function slugKode(teks) {
+  return String(teks || '').toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+function linkUntuk(kode) {
+  const base = location.href.replace(/super-admin\.html.*$/, '');
+  return { absensi: base + 'index.html?klien=' + encodeURIComponent(kode), admin: base + 'admin.html?klien=' + encodeURIComponent(kode) };
+}
+
+// ---------- LOGIN ----------
+document.getElementById('btn-login').addEventListener('click', async () => {
+  const pass = document.getElementById('login-password').value;
+  if (!pass) return showToast('Masukkan password.', false);
+  const btn = document.getElementById('btn-login');
+  setBusy(btn, true, 'Memeriksa...', 'Masuk');
+  superPassword = pass;
+  const res = await api('loginSuperAdmin', {});
+  setBusy(btn, false, '', 'Masuk');
+  if (!res.sukses) { superPassword = ''; return showToast(res.pesan || 'Password salah.', false); }
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+  muatDaftarKlien();
+});
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-login').click();
+});
+document.getElementById('btn-logout').addEventListener('click', () => {
+  superPassword = '';
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('screen-login').style.display = 'flex';
+  document.getElementById('login-password').value = '';
+});
+
+// ---------- DAFTAR KLIEN ----------
+async function muatDaftarKlien() {
+  const wrap = document.getElementById('daftar-klien');
+  wrap.innerHTML = '<div class="empty-state">Memuat...</div>';
+  const res = await api('daftarKlienSuperAdmin', {});
+  if (!res.sukses) { wrap.innerHTML = '<div class="empty-state">⚠️ ' + res.pesan + '</div>'; return; }
+  daftarKlien = res.daftar || [];
+  if (!daftarKlien.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="big">📋</div>Belum ada klien. Klik "+ Tambah Klien Baru".</div>';
+    return;
+  }
+  wrap.innerHTML = daftarKlien.map(k => `
+    <div class="klien-card ${k.status !== 'aktif' ? 'nonaktif' : ''}">
+      <div class="info">
+        <div class="nama">${escapeHtml(k.namaKlien)}<span class="badge ${k.status === 'aktif' ? 'aktif' : 'nonaktif'}">${k.status === 'aktif' ? 'AKTIF' : 'NONAKTIF'}</span></div>
+        <div class="kode">${escapeHtml(k.kodeKlien)}</div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-outline btn-sm" data-act="info" data-id="${k.id}">Info &amp; QR</button>
+        <button class="btn btn-outline btn-sm" data-act="kelola" data-kode="${k.kodeKlien}">Kelola</button>
+        <button class="btn btn-outline btn-sm" data-act="edit" data-id="${k.id}">Edit</button>
+        <button class="btn btn-outline btn-sm" data-act="reset" data-id="${k.id}">Reset Password</button>
+        <button class="btn ${k.status === 'aktif' ? 'btn-danger' : 'btn-green'} btn-sm" data-act="status" data-id="${k.id}" data-status="${k.status}">${k.status === 'aktif' ? 'Nonaktifkan' : 'Aktifkan'}</button>
+      </div>
+    </div>
+  `).join('');
+}
+function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+document.getElementById('daftar-klien').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const klien = daftarKlien.find(k => k.id === id);
+
+  if (btn.dataset.act === 'kelola') {
+    window.open(linkUntuk(btn.dataset.kode).admin, '_blank');
+    return;
+  }
+  if (btn.dataset.act === 'info') {
+    setBusy(btn, true, '...', 'Info & QR');
+    const res = await api('lihatPasswordKlienSuperAdmin', { klienId: id });
+    setBusy(btn, false, '', 'Info & QR');
+    if (!res.sukses) return showToast(res.pesan, false);
+    tampilkanInfoQr(klien, res.password);
+    return;
+  }
+  if (btn.dataset.act === 'edit') {
+    klienAktifSekarang = klien;
+    document.getElementById('edit-nama').value = klien.namaKlien;
+    document.getElementById('edit-logo').value = klien.logoUrl || '';
+    bukaModal('modal-edit');
+    return;
+  }
+  if (btn.dataset.act === 'reset') {
+    klienAktifSekarang = klien;
+    document.getElementById('reset-nama-klien').textContent = klien.namaKlien + ' (' + klien.kodeKlien + ')';
+    document.getElementById('reset-password').value = acakPassword();
+    bukaModal('modal-reset');
+    return;
+  }
+  if (btn.dataset.act === 'status') {
+    const statusBaru = btn.dataset.status === 'aktif' ? 'nonaktif' : 'aktif';
+    const label = statusBaru === 'aktif' ? 'mengaktifkan' : 'menonaktifkan';
+    if (!confirm(`Yakin ingin ${label} klien "${klien.namaKlien}"?`)) return;
+    setBusy(btn, true, '...', btn.textContent);
+    const res = await api('ubahStatusKlienSuperAdmin', { klienId: id, status: statusBaru });
+    setBusy(btn, false, '', btn.textContent);
+    showToast(res.pesan, res.sukses);
+    if (res.sukses) muatDaftarKlien();
+    return;
+  }
+});
+
+function tampilkanInfoQr(klien, password) {
+  document.getElementById('info-nama-klien').textContent = klien.namaKlien;
+  document.getElementById('info-kode-klien').textContent = 'Kode: ' + klien.kodeKlien;
+  const link = linkUntuk(klien.kodeKlien);
+  document.getElementById('info-link-absensi').value = link.absensi;
+  document.getElementById('info-link-admin').value = link.admin;
+  document.getElementById('info-password').value = password || '(tidak tersedia)';
+  const box = document.getElementById('qr-box');
+  box.innerHTML = '';
+  new QRCode(box, { text: link.absensi, width: 200, height: 200 });
+  bukaModal('modal-info');
+}
+document.querySelectorAll('[data-copy]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const el = document.getElementById(btn.dataset.copy);
+    el.select();
+    navigator.clipboard ? navigator.clipboard.writeText(el.value).then(() => showToast('Disalin ke clipboard.', true)) : document.execCommand('copy');
+  });
+});
+document.getElementById('btn-unduh-qr').addEventListener('click', () => {
+  const canvas = document.querySelector('#qr-box canvas');
+  const img = document.querySelector('#qr-box img');
+  const dataUrl = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
+  if (!dataUrl) return showToast('QR belum siap.', false);
+  const a = document.createElement('a');
+  a.href = dataUrl; a.download = 'QR_Absensi_' + document.getElementById('info-kode-klien').textContent.replace('Kode: ', '') + '.png';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+});
+
+// ---------- TAMBAH KLIEN ----------
+document.getElementById('btn-buka-tambah').addEventListener('click', () => {
+  document.getElementById('tambah-nama').value = '';
+  document.getElementById('tambah-kode').value = '';
+  document.getElementById('tambah-password').value = acakPassword();
+  document.getElementById('tambah-logo').value = '';
+  bukaModal('modal-tambah');
+});
+document.getElementById('tambah-nama').addEventListener('input', (e) => {
+  document.getElementById('tambah-kode').value = slugKode(e.target.value);
+});
+document.getElementById('btn-acak-password').addEventListener('click', () => {
+  document.getElementById('tambah-password').value = acakPassword();
+});
+document.getElementById('btn-simpan-tambah').addEventListener('click', async () => {
+  const namaKlien = document.getElementById('tambah-nama').value.trim();
+  const kodeKlien = slugKode(document.getElementById('tambah-kode').value);
+  const passwordKlien = document.getElementById('tambah-password').value.trim();
+  const logoUrl = document.getElementById('tambah-logo').value.trim();
+  if (!namaKlien) return showToast('Nama klien wajib diisi.', false);
+  if (!kodeKlien) return showToast('Kode klien wajib diisi.', false);
+  if (passwordKlien.length < 6) return showToast('Password minimal 6 karakter.', false);
+  const btn = document.getElementById('btn-simpan-tambah');
+  setBusy(btn, true, 'Menyimpan...', 'Simpan & Buat Klien');
+  const res = await api('tambahKlienSuperAdmin', { namaKlien, kodeKlien, passwordKlien, logoUrl });
+  setBusy(btn, false, '', 'Simpan & Buat Klien');
+  if (!res.sukses) return showToast(res.pesan, false);
+  tutupModal('modal-tambah');
+  showToast(res.pesan, true);
+  await muatDaftarKlien();
+  tampilkanInfoQr({ namaKlien: res.klien.namaKlien, kodeKlien: res.klien.kodeKlien }, res.klien.passwordKlien);
+});
+
+// ---------- EDIT KLIEN ----------
+document.getElementById('btn-simpan-edit').addEventListener('click', async () => {
+  const namaKlien = document.getElementById('edit-nama').value.trim();
+  const logoUrl = document.getElementById('edit-logo').value.trim();
+  if (!namaKlien) return showToast('Nama klien wajib diisi.', false);
+  const btn = document.getElementById('btn-simpan-edit');
+  setBusy(btn, true, 'Menyimpan...', 'Simpan Perubahan');
+  const res = await api('editKlienSuperAdmin', { klienId: klienAktifSekarang.id, namaKlien, logoUrl });
+  setBusy(btn, false, '', 'Simpan Perubahan');
+  showToast(res.pesan, res.sukses);
+  if (res.sukses) { tutupModal('modal-edit'); muatDaftarKlien(); }
+});
+
+// ---------- RESET PASSWORD ----------
+document.getElementById('btn-acak-reset').addEventListener('click', () => {
+  document.getElementById('reset-password').value = acakPassword();
+});
+document.getElementById('btn-simpan-reset').addEventListener('click', async () => {
+  const passwordBaru = document.getElementById('reset-password').value.trim();
+  if (passwordBaru.length < 6) return showToast('Password minimal 6 karakter.', false);
+  const btn = document.getElementById('btn-simpan-reset');
+  setBusy(btn, true, 'Menyimpan...', 'Reset Password');
+  const res = await api('resetPasswordKlienSuperAdmin', { klienId: klienAktifSekarang.id, passwordBaru });
+  setBusy(btn, false, '', 'Reset Password');
+  if (!res.sukses) return showToast(res.pesan, false);
+  tutupModal('modal-reset');
+  showToast(res.pesan, true);
+  tampilkanInfoQr(klienAktifSekarang, passwordBaru);
+});
+</script>
+</body>
+</html>
