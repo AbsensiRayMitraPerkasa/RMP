@@ -62,6 +62,7 @@
     width:100%; background:#fbfcfe; border:1px solid var(--border); color:var(--text);
     padding:11px 12px; border-radius:var(--radius-sm); font-size:14.5px; font-family:var(--f-body);
   }
+  select:disabled { background:#eef1f6; opacity:1; color:var(--text); font-weight:600; -webkit-text-fill-color: var(--text); }
   textarea{resize:vertical; min-height:70px;}
   input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--navy); outline-offset:1px;}
   .pin-plain{letter-spacing:10px; font-size:20px; text-align:center; font-family:var(--f-mono);}
@@ -495,12 +496,10 @@
 </nav>
 
 <script>
- 
 const API_URL = 'https://rxmjsvzkciwgpdatgqkd.supabase.co/functions/v1/api';
 const LOGO_URL = 'icon-192.png'; 
 const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
 
- 
 let sesi = { nama: '', pin: '', bagianKerja: '' };
 let klienValid = false;
 let cameraStreams = {};
@@ -511,7 +510,6 @@ let posisiTerkini = null;
 let watchId = null;
 let leafletMap = null, leafletMarker = null;
 
- 
 async function api(action, payload) {
   try {
     const res = await fetch(API_URL, {
@@ -543,8 +541,10 @@ if (LOGO_URL) {
   document.querySelectorAll('.logo').forEach(el => { el.innerHTML = '<img src="' + LOGO_URL + '" alt="logo">'; });
 }
 
- 
-
+// LOG SYSTEM CALL (JANGAN DIHAPUS, akan mengirim info error ke server bila backend sudah dikonfigurasi)
+function kirimLogKeSistem(tipe, deskripsi) {
+  api('simpanLogSystem', { tipe, deskripsi, waktu: new Date().toISOString(), user: sesi.nama || 'Anonim' }).catch(()=>{});
+}
 
 function tampilkanLinkTidakValid(pesan) {
   document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
@@ -575,7 +575,6 @@ async function muatInfoSistem() {
   }
 }
 
- 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
   document.getElementById('screen-' + id).classList.remove('hidden');
@@ -615,12 +614,14 @@ async function syncData() {
 function doLogout() {
   if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
   sesi = { nama: '', pin: '', bagianKerja: '' };
+  
+  // Hapus sesi lokal agar saat reload minta PIN ulang, tapi nama tetap terkunci
+  localStorage.removeItem('ray_karyawan_session_' + KODE_KLIEN); 
+  
   showScreen('login');
 }
 
- 
 let cameraFacing = {}; 
-
 async function startCamera(videoEl, key, defaultFacing) {
   key = key || videoEl.id;
   const facing = cameraFacing[key] || defaultFacing || 'environment';
@@ -633,6 +634,7 @@ async function startCamera(videoEl, key, defaultFacing) {
     return stream;
   } catch (e) {
     showToast('Tidak bisa mengakses kamera. Izinkan akses kamera di browser.', false);
+    kirimLogKeSistem('ERROR_KAMERA', e.message);
     return null;
   }
 }
@@ -679,7 +681,6 @@ function mulaiScanQR(videoEl, key, onFound) {
   requestAnimationFrame(tick);
 }
 
- 
 function jarakMeter(lat1, lon1, lat2, lon2) {
   const R = 6371000, toRad = d => d * Math.PI / 180;
   const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
@@ -700,7 +701,10 @@ function mulaiPantauLokasi() {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
   watchId = navigator.geolocation.watchPosition(
     pos => { updatePosisi(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy)); },
-    err => { document.getElementById('gps-status').textContent = 'GPS tidak aktif: ' + err.message; },
+    err => { 
+      document.getElementById('gps-status').textContent = 'GPS tidak aktif: ' + err.message; 
+      kirimLogKeSistem('ERROR_GPS', err.message);
+    },
     { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
   );
 }
@@ -740,12 +744,11 @@ document.getElementById('link-kalibrasi').addEventListener('click', (e) => {
   document.getElementById('gps-status').textContent = 'Mengkalibrasi ulang...';
   navigator.geolocation.getCurrentPosition(
     pos => updatePosisi(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy)),
-    err => showToast('Gagal kalibrasi: ' + err.message, false),
+    err => { showToast('Gagal kalibrasi: ' + err.message, false); kirimLogKeSistem('ERROR_GPS_KALIBRASI', err.message); },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
   );
 });
 
- 
 async function muatDaftarNama() {
   const res = await api('daftarKaryawan', {});
   const sel = document.getElementById('login-nama');
@@ -753,9 +756,21 @@ async function muatDaftarNama() {
   if (res.sukses !== false && res.daftar) {
     res.daftar.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
   }
+
+  // Cek apakah HP ini sudah pernah dipakai login sukses (bind nama)
+  const bindNama = localStorage.getItem('ray_bind_nama_' + KODE_KLIEN);
+  if (bindNama) {
+    sel.value = bindNama;
+    sel.disabled = true;
+    const lbl = document.createElement('div');
+    lbl.style.fontSize = '12px'; lbl.style.color = 'var(--red)'; lbl.style.marginTop = '4px';
+    lbl.textContent = '* Perangkat ini telah terkunci secara permanen untuk absen atas nama ' + bindNama + '.';
+    sel.parentNode.insertBefore(lbl, sel.nextSibling);
+  }
 }
 document.getElementById('btn-login').addEventListener('click', async () => {
-  const nama = document.getElementById('login-nama').value;
+  const sel = document.getElementById('login-nama');
+  const nama = localStorage.getItem('ray_bind_nama_' + KODE_KLIEN) || sel.value;
   const pin = document.getElementById('login-pin').value.trim();
   if (!nama) return showToast('Pilih nama Anda dulu.', false);
   if (!/^[0-9]{4}$/.test(pin)) return showToast('PIN harus 4 digit angka.', false);
@@ -763,8 +778,18 @@ document.getElementById('btn-login').addEventListener('click', async () => {
   setBusy(btn, true, 'Memproses...', 'Masuk');
   const res = await api('login', { nama, pin });
   setBusy(btn, false, '', 'Masuk');
-  if (!res.sukses) { showToast(res.pesan || 'Login gagal.', false); return; }
+  if (!res.sukses) { 
+    showToast(res.pesan || 'Login gagal.', false); 
+    kirimLogKeSistem('ERROR_LOGIN', res.pesan || 'Login gagal.');
+    return; 
+  }
   sesi = { nama, pin, bagianKerja: res.bagianKerja, status: res.status };
+  
+  // Mengunci perangkat ini untuk nama yang login
+  localStorage.setItem('ray_bind_nama_' + KODE_KLIEN, nama);
+  // Persistensi Sesi agar tidak hilang waktu reload
+  localStorage.setItem('ray_karyawan_session_' + KODE_KLIEN, JSON.stringify(sesi));
+  
   document.getElementById('login-pin').value = '';
   await muatDataMasterUntukSesi();
   mulaiPantauLokasi();
@@ -793,7 +818,6 @@ document.getElementById('btn-submit-daftar').addEventListener('click', async () 
   }
 });
 
- 
 async function muatDataMasterUntukSesi() {
   const resLok = await api('daftarLokasi', {});
   daftarLokasiKerja = resLok.daftar || [];
@@ -808,7 +832,6 @@ async function muatDataMasterUntukSesi() {
   }
 }
 
- 
 function updateJam() {
   const now = new Date();
   const hariList = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
@@ -877,7 +900,6 @@ async function muatRiwayatInline() {
   ).join('');
 }
 
- 
 let presensiJenis = null, presensiFotoB64 = null;
 function bukaModalPresensi(jenis) {
   presensiJenis = jenis;
@@ -927,6 +949,10 @@ document.getElementById('btn-kirim-presensi').addEventListener('click', async ()
   });
   setBusy(btn, false, '', 'Kirim');
   showToast(res.pesan, res.sukses);
+  
+  // LOG BILA GAGAL ABSEN
+  if (!res.sukses) kirimLogKeSistem('ERROR_ABSEN', res.pesan);
+  
   if (res.sukses) {
     tutupModalPresensi();
     await refreshStatus();
@@ -934,7 +960,6 @@ document.getElementById('btn-kirim-presensi').addEventListener('click', async ()
   }
 });
 
- 
 let ijinFotoB64 = null;
 function resetIjinScreen() {
   ijinFotoB64 = null;
@@ -985,7 +1010,6 @@ document.getElementById('btn-kirim-ijin').addEventListener('click', async () => 
   if (res.sukses) setTimeout(() => showScreen('home'), 1000);
 });
 
- 
 let patroliState = { namaPos: null, fotoB64: null };
 function resetPatroliScreen() {
   patroliState = { namaPos: null, fotoB64: null };
@@ -1069,7 +1093,6 @@ document.getElementById('btn-kirim-patroli').addEventListener('click', async () 
   if (res.sukses) setTimeout(() => showScreen('home'), 1000);
 });
 
- 
 let kegiatanState = { tugas: null, area: null, fotoSebelum: null, fotoSesudah: null };
 function resetKegiatanScreen() {
   kegiatanState = { tugas: null, area: null, fotoSebelum: null, fotoSesudah: null };
@@ -1179,10 +1202,20 @@ document.getElementById('btn-kirim-kegiatan').addEventListener('click', async ()
   if (res.sukses) setTimeout(() => showScreen('home'), 1000);
 });
 
- 
+// STARTUP AWAL + CEK SESI
 (async () => {
   await muatInfoSistem();
-  if (!klienValid) return; // layar "Link Tidak Valid" sudah ditampilkan di muatInfoSistem()
+  if (!klienValid) return; // layar "Link Tidak Valid" otomatis ditampilkan di dalam muatInfoSistem()
+
+  const savedSesi = localStorage.getItem('ray_karyawan_session_' + KODE_KLIEN);
+  if (savedSesi) {
+    sesi = JSON.parse(savedSesi);
+    await muatDataMasterUntukSesi();
+    mulaiPantauLokasi();
+    showScreen('home');
+    return;
+  }
+
   await muatDaftarNama();
   showScreen('login');
 })();
