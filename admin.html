@@ -158,6 +158,13 @@
 </head>
 <body>
 
+<section id="screen-klien-invalid" class="center-screen hidden">
+  <div class="login-card" style="text-align:center;">
+    <div style="font-size:40px; margin-bottom:8px;">🔒</div>
+    <h1 style="font-size:19px;">Link Admin Tidak Valid</h1>
+    <p class="muted" id="klien-invalid-pesan">Link ini tidak valid atau klien sudah tidak aktif. Hubungi Super Admin untuk link yang benar.</p>
+  </div>
+</section>
 
 <section id="screen-login" class="center-screen">
   <div class="login-card">
@@ -323,6 +330,7 @@
 <script>
 const API_URL = 'https://rxmjsvzkciwgpdatgqkd.supabase.co/functions/v1/api';
 const SUPABASE_ANON_KEY = 'sb_publishable_Pd8aIKqO_vo-tZIm1ndvdg_yDlqVu40';
+const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
 
 let adminPassword = '';
 let peran = '';
@@ -337,7 +345,7 @@ async function api(action, payload) {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
       },
-      body: JSON.stringify(Object.assign({ action }, payload || {}))
+      body: JSON.stringify(Object.assign({ action, kodeKlien: KODE_KLIEN }, payload || {}))
     });
     return await res.json();
   } catch (e) {
@@ -360,14 +368,32 @@ function setBusy(btn, busy, labelBusy, labelNormal) {
  
 
 
+function tampilkanLinkTidakValid(pesan) {
+  document.getElementById('screen-login').classList.add('hidden');
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('klien-invalid-pesan').textContent = pesan || 'Link ini tidak valid atau klien sudah tidak aktif.';
+  document.getElementById('screen-klien-invalid').classList.remove('hidden');
+}
 async function muatInfoSistem() {
+  if (!KODE_KLIEN) {
+    tampilkanLinkTidakValid('Link admin tidak lengkap. Pastikan URL mengandung ?klien=... di akhir (link diberikan oleh Super Admin).');
+    return;
+  }
   const res = await api('infoSistem', {});
-  const nama = (res && res.sukses && res.namaKlien) ? res.namaKlien : '';
+  if (!res.sukses) {
+    tampilkanLinkTidakValid(res.pesan);
+    return;
+  }
+  const nama = res.namaKlien || '';
   document.title = 'Admin — ' + (nama || 'Absensi RAY');
   const sub = document.getElementById('subtitle-klien');
   if (sub) sub.textContent = nama ? ('Klien: ' + nama) : '';
   const brand = document.getElementById('brand-header');
   if (brand) brand.textContent = nama ? ('Absensi RAY · ' + nama) : 'Absensi RAY';
+  if (res.logoUrl) {
+    document.querySelectorAll('img[alt="logo"]').forEach(el => { el.src = res.logoUrl; });
+  }
 }
 muatInfoSistem();
 
@@ -398,10 +424,10 @@ function masukKeApp() {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('app').classList.add('show');
   const roleTag = document.getElementById('role-tag');
-  roleTag.textContent = peran === 'internal' ? 'ADMIN INTERNAL' : 'ADMIN CLIENT';
-  roleTag.classList.toggle('internal', peran === 'internal');
-  document.getElementById('tab-btn-persetujuan').classList.toggle('hidden', peran !== 'internal');
-  document.getElementById('tab-btn-kelola').classList.toggle('hidden', peran !== 'internal');
+  roleTag.textContent = peran === 'super' ? 'SUPER ADMIN' : 'ADMIN KLIEN';
+  roleTag.classList.toggle('internal', peran === 'super');
+  document.getElementById('tab-btn-persetujuan').classList.remove('hidden');
+  document.getElementById('tab-btn-kelola').classList.remove('hidden');
 
   const now = new Date();
   filterBulan = now.getMonth() + 1; filterTahun = now.getFullYear();
@@ -747,13 +773,14 @@ function unduhQrDariBox(box, namaFile) {
 
  
 function initQrWeb() {
-  const saved = localStorage.getItem('linkWebKaryawan');
-  if (saved) document.getElementById('qrweb-link').value = saved;
+  const otomatis = location.href.replace(/admin\.html.*$/, 'index.html') + '?klien=' + encodeURIComponent(KODE_KLIEN);
+  const saved = localStorage.getItem('linkWebKaryawan_' + KODE_KLIEN);
+  document.getElementById('qrweb-link').value = saved || otomatis;
 }
 document.getElementById('btn-generate-qrweb').addEventListener('click', () => {
   const link = document.getElementById('qrweb-link').value.trim();
   if (!link) return showToast('Isi link web karyawan dulu.', false);
-  localStorage.setItem('linkWebKaryawan', link);
+  localStorage.setItem('linkWebKaryawan_' + KODE_KLIEN, link);
   const box = document.getElementById('qrweb-box');
   box.style.display = 'flex';
   box.innerHTML = '';
