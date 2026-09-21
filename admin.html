@@ -365,8 +365,10 @@ function setBusy(btn, busy, labelBusy, labelNormal) {
   btn.textContent = busy ? (labelBusy || 'Memproses...') : labelNormal;
 }
 
- 
-
+// LOG SYSTEM CALL (JANGAN DIHAPUS, akan mengirim info error ke server bila backend dikonfigurasi)
+function kirimLogKeSistem(tipe, deskripsi) {
+  api('simpanLogSystem', { tipe, deskripsi, waktu: new Date().toISOString(), user: 'Admin' }).catch(()=>{});
+}
 
 function tampilkanLinkTidakValid(pesan) {
   document.getElementById('screen-login').classList.add('hidden');
@@ -395,9 +397,7 @@ async function muatInfoSistem() {
     document.querySelectorAll('img[alt="logo"]').forEach(el => { el.src = res.logoUrl; });
   }
 }
-muatInfoSistem();
 
- 
 document.getElementById('btn-login-admin').addEventListener('click', async () => {
   const pass = document.getElementById('login-password').value;
   if (!pass) return showToast('Masukkan password.', false);
@@ -405,9 +405,18 @@ document.getElementById('btn-login-admin').addEventListener('click', async () =>
   setBusy(btn, true, 'Memeriksa...', 'Masuk');
   const res = await api('loginAdmin', { password: pass });
   setBusy(btn, false, '', 'Masuk');
-  if (!res.sukses) return showToast(res.pesan || 'Password salah.', false);
+  
+  if (!res.sukses) {
+    kirimLogKeSistem('ERROR_LOGIN_ADMIN', res.pesan || 'Password salah.');
+    return showToast(res.pesan || 'Password salah.', false);
+  }
+  
   adminPassword = pass;
   peran = res.peran;
+  
+  // Persistensi Sesi
+  localStorage.setItem('ray_admin_session_' + KODE_KLIEN, JSON.stringify({ adminPassword, peran }));
+  
   masukKeApp();
 });
 document.getElementById('login-password').addEventListener('keydown', e => {
@@ -415,6 +424,10 @@ document.getElementById('login-password').addEventListener('keydown', e => {
 });
 document.getElementById('btn-logout-admin').addEventListener('click', () => {
   adminPassword = ''; peran = '';
+  
+  // Hapus Sesi
+  localStorage.removeItem('ray_admin_session_' + KODE_KLIEN);
+  
   document.getElementById('app').classList.remove('show');
   document.getElementById('screen-login').style.display = 'flex';
   document.getElementById('login-password').value = '';
@@ -445,7 +458,6 @@ document.getElementById('btn-terapkan-filter').addEventListener('click', () => {
   muatSemuaDashboard();
 });
 
- 
 document.getElementById('tabs').addEventListener('click', e => {
   const btn = e.target.closest('button[data-tab]');
   if (!btn) return;
@@ -457,7 +469,6 @@ document.getElementById('tabs').addEventListener('click', e => {
   if (btn.dataset.tab === 'kelola') { muatKelola('karyawan'); initQrWeb(); }
 });
 
- 
 document.querySelectorAll('.subtabs[data-target]').forEach(group => {
   const wrap = document.getElementById(group.dataset.target);
   group.querySelectorAll('button').forEach(b => {
@@ -473,7 +484,6 @@ document.querySelectorAll('.subtabs[data-target]').forEach(group => {
   });
 });
 
- 
 function muatSemuaDashboard() {
   muatDashboardAbsensi();
   muatDashboardOperasional('ambilDashboardPatroli', 'patroli-stats', 'patroli-table');
@@ -527,7 +537,6 @@ async function muatDashboardOperasional(action, statsId, tableId) {
   ).join('') || '<tr><td colspan="4" class="muted">Belum ada staf terdaftar untuk divisi ini.</td></tr>';
 }
 
- 
 async function muatPersetujuan() {
   if (peran !== 'internal') return;
   const [resDaftar, resIjin] = await Promise.all([
@@ -582,7 +591,6 @@ async function prosesIjin(id, setujui) {
   if (res.sukses) muatPersetujuan();
 }
 
- 
 const ENTITAS_KELOLA = {
   karyawan: {
     title: 'Karyawan',
@@ -750,7 +758,6 @@ async function hapusKelola(key, id) {
   if (res.sukses) muatKelola(key);
 }
 
- 
 function tampilkanQr(kode, judul) {
   if (!kode) return showToast('Titik ini belum punya Kode Titik. Isi dulu "Kode Titik" di form, baru QR bisa dibuat.', false);
   document.getElementById('qr-modal-title').textContent = 'QR: ' + judul;
@@ -771,7 +778,6 @@ function unduhQrDariBox(box, namaFile) {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
- 
 function initQrWeb() {
   const otomatis = location.href.replace(/admin\.html.*$/, 'index.html') + '?klien=' + encodeURIComponent(KODE_KLIEN);
   const saved = localStorage.getItem('linkWebKaryawan_' + KODE_KLIEN);
@@ -790,7 +796,6 @@ document.getElementById('btn-generate-qrweb').addEventListener('click', () => {
   btnDl.onclick = () => unduhQrDariBox(box, 'QR_Akses_Web_Karyawan');
 });
 
- 
 function pushChat(role, text) {
   const log = document.getElementById('chat-log');
   const div = document.createElement('div');
@@ -815,6 +820,20 @@ async function kirimChat() {
   setBusy(btn, false, '', 'Kirim');
   pushChat('ai', res.sukses ? res.jawaban : ('⚠️ ' + res.pesan));
 }
+
+// STARTUP AWAL + CEK SESI
+(async () => {
+  await muatInfoSistem();
+  if (!KODE_KLIEN) return;
+  
+  const saved = localStorage.getItem('ray_admin_session_' + KODE_KLIEN);
+  if (saved) {
+    const s = JSON.parse(saved);
+    adminPassword = s.adminPassword;
+    peran = s.peran;
+    masukKeApp();
+  }
+})();
 </script>
 </body>
 </html>
