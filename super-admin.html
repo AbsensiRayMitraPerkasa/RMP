@@ -225,6 +225,17 @@
   </div>
 </div>
 
+<!-- Modal: Log -->
+<div class="modal-bg hidden" id="modal-log">
+  <div class="modal" style="max-width:600px;">
+    <div class="close-row"><button data-close="modal-log">✕</button></div>
+    <h3>Log Sistem - <span id="log-nama-klien"></span></h3>
+    <div id="log-container" style="max-height:400px; overflow-y:auto; margin-top:10px; font-size:13px; border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px;">
+      <div class="empty-state">Memuat log...</div>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast hidden"></div>
 
 <script>
@@ -233,7 +244,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_Pd8aIKqO_vo-tZIm1ndvdg_yDlqVu40';
 
 let superPassword = '';
 let daftarKlien = [];
-let klienAktifSekarang = null; // dipakai modal edit/reset
+let klienAktifSekarang = null; // dipakai modal edit/reset/log
 
 async function api(action, payload) {
   try {
@@ -297,6 +308,10 @@ document.getElementById('btn-login').addEventListener('click', async () => {
   const res = await api('loginSuperAdmin', {});
   setBusy(btn, false, '', 'Masuk');
   if (!res.sukses) { superPassword = ''; return showToast(res.pesan || 'Password salah.', false); }
+  
+  // Persistensi Sesi Super Admin
+  localStorage.setItem('ray_super_session', superPassword);
+  
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('app').classList.add('show');
   muatDaftarKlien();
@@ -306,6 +321,7 @@ document.getElementById('login-password').addEventListener('keydown', e => {
 });
 document.getElementById('btn-logout').addEventListener('click', () => {
   superPassword = '';
+  localStorage.removeItem('ray_super_session'); // Hapus sesi
   document.getElementById('app').classList.remove('show');
   document.getElementById('screen-login').style.display = 'flex';
   document.getElementById('login-password').value = '';
@@ -329,6 +345,7 @@ async function muatDaftarKlien() {
         <div class="kode">${escapeHtml(k.kodeKlien)}</div>
       </div>
       <div class="actions">
+        <button class="btn btn-outline btn-sm" data-act="log" data-id="${k.id}">Lihat Log</button>
         <button class="btn btn-outline btn-sm" data-act="info" data-id="${k.id}">Info &amp; QR</button>
         <button class="btn btn-outline btn-sm" data-act="kelola" data-kode="${k.kodeKlien}">Kelola</button>
         <button class="btn btn-outline btn-sm" data-act="edit" data-id="${k.id}">Edit</button>
@@ -346,6 +363,11 @@ document.getElementById('daftar-klien').addEventListener('click', async (e) => {
   const id = btn.dataset.id;
   const klien = daftarKlien.find(k => k.id === id);
 
+  if (btn.dataset.act === 'log') {
+    klienAktifSekarang = klien;
+    muatLogKlien(klien.id);
+    return;
+  }
   if (btn.dataset.act === 'kelola') {
     window.open(linkUntuk(btn.dataset.kode).admin, '_blank');
     return;
@@ -384,6 +406,31 @@ document.getElementById('daftar-klien').addEventListener('click', async (e) => {
     return;
   }
 });
+
+// ---------- LOG KLIEN ----------
+async function muatLogKlien(klienId) {
+  document.getElementById('log-nama-klien').textContent = klienAktifSekarang.namaKlien;
+  const container = document.getElementById('log-container');
+  container.innerHTML = '<div class="empty-state">Memuat log...</div>';
+  bukaModal('modal-log');
+
+  const res = await api('lihatLogSystemSuperAdmin', { klienId });
+  if (!res.sukses) {
+    container.innerHTML = '<div class="empty-state" style="color:var(--red);">⚠️ ' + res.pesan + '<br><br><em style="font-size:12px; color:var(--muted);">Catatan: Endpoint action "lihatLogSystemSuperAdmin" belum dikonfigurasi di Supabase Edge Function Anda. Anda perlu menambahkannya agar log dapat dibaca dari database.</em></div>';
+    return;
+  }
+  if (!res.log || !res.log.length) {
+    container.innerHTML = '<div class="empty-state">Belum ada log tercatat.</div>';
+    return;
+  }
+  container.innerHTML = res.log.map(l => `
+    <div style="padding:10px; border-bottom:1px solid var(--border);">
+      <div style="font-size:11px; color:var(--muted); font-family:var(--f-mono);">${l.waktu}</div>
+      <div style="font-weight:700; margin:4px 0; color:var(--navy);">${l.tipe} - User: ${l.user || 'System'}</div>
+      <div>${l.deskripsi}</div>
+    </div>
+  `).join('');
+}
 
 function tampilkanInfoQr(klien, password) {
   document.getElementById('info-nama-klien').textContent = klien.namaKlien;
@@ -476,6 +523,15 @@ document.getElementById('btn-simpan-reset').addEventListener('click', async () =
   showToast(res.pesan, true);
   tampilkanInfoQr(klienAktifSekarang, passwordBaru);
 });
+
+// INIT
+const savedSuper = localStorage.getItem('ray_super_session');
+if (savedSuper) {
+  superPassword = savedSuper;
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+  muatDaftarKlien();
+}
 </script>
 </body>
 </html>
