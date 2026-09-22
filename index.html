@@ -542,8 +542,11 @@ if (LOGO_URL) {
 }
 
 // LOG SYSTEM CALL (JANGAN DIHAPUS, akan mengirim info error ke server bila backend sudah dikonfigurasi)
-function kirimLogKeSistem(tipe, deskripsi) {
-  api('simpanLogSystem', { tipe, deskripsi, waktu: new Date().toISOString(), user: sesi.nama || 'Anonim' }).catch(()=>{});
+// namaOverride dipakai untuk error yang terjadi SEBELUM sesi.nama terisi (mis. saat
+// percobaan login gagal), supaya nama yang sudah dipilih di layar login tetap tercatat
+// di log, bukan malah tertulis "Anonim".
+function kirimLogKeSistem(tipe, deskripsi, namaOverride) {
+  api('simpanLogSystem', { tipe, deskripsi, waktu: new Date().toISOString(), user: namaOverride || sesi.nama || 'Anonim' }).catch(()=>{});
 }
 
 function tampilkanLinkTidakValid(pesan) {
@@ -778,10 +781,10 @@ document.getElementById('btn-login').addEventListener('click', async () => {
   setBusy(btn, true, 'Memproses...', 'Masuk');
   const res = await api('login', { nama, pin });
   setBusy(btn, false, '', 'Masuk');
-  if (!res.sukses) { 
-    showToast(res.pesan || 'Login gagal.', false); 
-    kirimLogKeSistem('ERROR_LOGIN', res.pesan || 'Login gagal.');
-    return; 
+  if (!res.sukses) {
+    showToast(res.pesan || 'Login gagal.', false);
+    kirimLogKeSistem('ERROR_LOGIN', res.pesan || 'Login gagal.', nama);
+    return;
   }
   sesi = { nama, pin, bagianKerja: res.bagianKerja, status: res.status };
   

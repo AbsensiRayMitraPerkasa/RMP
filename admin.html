@@ -125,6 +125,8 @@
   .empty-state{text-align:center; padding:40px 16px; color:var(--muted);}
   .empty-state .big{font-size:32px; margin-bottom:6px;}
 
+  .foto-thumb{width:44px; height:44px; object-fit:cover; border-radius:8px; border:1px solid var(--border); display:block;}
+
   .chat-log{display:flex; flex-direction:column; gap:12px; margin-bottom:14px; max-height:60vh; overflow-y:auto; padding-right:4px;}
   .chat-msg{max-width:80%; padding:10px 13px; border-radius:var(--radius-sm); font-size:14px; line-height:1.5; white-space:pre-wrap;}
   .chat-msg.user{align-self:flex-end; background:var(--navy); color:#fff;}
@@ -223,6 +225,16 @@
           <table>
             <thead><tr><th>Nama</th><th>Bagian</th><th class="num">Hadir</th><th class="num">Telat</th><th class="num">Ijin</th><th class="num">% Hadir</th></tr></thead>
             <tbody id="absensi-table"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="section-title">Riwayat Absensi (Detail)</div>
+        <p class="muted" style="font-size:12.5px; margin-top:-6px;">Setiap catatan clock in/out pada bulan &amp; tahun yang difilter di atas, lengkap dengan jarak ke lokasi kerja dan foto bukti.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Tanggal</th><th>Nama</th><th>Bagian</th><th>Jenis</th><th>Jam</th><th>Lokasi &amp; Jarak</th><th>Akurasi GPS</th><th>Foto</th></tr></thead>
+            <tbody id="absensi-detail-table"></tbody>
           </table>
         </div>
       </div>
@@ -486,8 +498,28 @@ document.querySelectorAll('.subtabs[data-target]').forEach(group => {
 
 function muatSemuaDashboard() {
   muatDashboardAbsensi();
+  muatRiwayatAbsensiDetail();
   muatDashboardOperasional('ambilDashboardPatroli', 'patroli-stats', 'patroli-table');
   muatDashboardOperasional('ambilDashboardCleaning', 'cleaning-stats', 'cleaning-table');
+}
+
+async function muatRiwayatAbsensiDetail() {
+  const tbody = document.getElementById('absensi-detail-table');
+  const res = await api('daftarAbsensiDetailAdmin', { password: adminPassword, bulan: filterBulan, tahun: filterTahun });
+  if (!res.sukses) { tbody.innerHTML = '<tr><td colspan="8" class="muted">' + res.pesan + '</td></tr>'; return; }
+  const daftar = res.daftar || [];
+  tbody.innerHTML = daftar.length ? daftar.map(r =>
+    '<tr>' +
+      '<td class="mono">' + r.tanggal + '</td>' +
+      '<td>' + r.nama + '</td>' +
+      '<td class="muted">' + r.bagianKerja + '</td>' +
+      '<td>' + r.jenisAbsen + '</td>' +
+      '<td class="mono">' + r.waktu + '</td>' +
+      '<td>' + (r.jarak !== null ? (r.jarak + ' m dari ' + r.namaLokasi) : '-') + '</td>' +
+      '<td class="mono">' + (r.akurasi != null ? ('±' + r.akurasi + ' m') : '-') + '</td>' +
+      '<td>' + (r.fotoUrl ? '<a href="' + r.fotoUrl + '" target="_blank" rel="noopener"><img class="foto-thumb" src="' + r.fotoUrl + '" alt="Foto absen ' + r.nama + '" loading="lazy"></a>' : '-') + '</td>' +
+    '</tr>'
+  ).join('') : '<tr><td colspan="8" class="muted">Belum ada data absensi pada periode ini.</td></tr>';
 }
 
 function statTile(num, label) {
