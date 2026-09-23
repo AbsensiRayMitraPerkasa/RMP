@@ -643,19 +643,33 @@ function captureFrame(videoEl, canvasEl) {
 }
 function base64Of(dataUrl) { return dataUrl.split(',')[1]; }
 
-function mulaiScanQR(videoEl, key, onFound) {
+function mulaiScanQR(videoEl, key, onFound, onGagalLib) {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   let aktif = true;
+  let percobaanTanpaLib = 0;
   cameraStreams[key + '_scanflag'] = { stop: () => { aktif = false; } };
   function tick() {
     if (!aktif) return;
-    if (videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
-      canvas.width = videoEl.videoWidth; canvas.height = videoEl.videoHeight;
-      ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code = window.jsQR ? jsQR(img.data, img.width, img.height) : null;
-      if (code && code.data) { aktif = false; onFound(code.data.trim()); return; }
+    try {
+      if (videoEl.readyState >= videoEl.HAVE_CURRENT_DATA && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
+        if (!window.jsQR) {
+          percobaanTanpaLib++;
+          if (percobaanTanpaLib > 300) { // ~5 detik pada 60fps
+            aktif = false;
+            if (onGagalLib) onGagalLib();
+            return;
+          }
+        } else {
+          canvas.width = videoEl.videoWidth; canvas.height = videoEl.videoHeight;
+          ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(img.data, img.width, img.height);
+          if (code && code.data) { aktif = false; onFound(code.data.trim()); return; }
+        }
+      }
+    } catch (e) {
+      // Jangan biarkan error satu frame mematikan loop scan; lanjut ke frame berikutnya.
     }
     requestAnimationFrame(tick);
   }
@@ -993,12 +1007,17 @@ document.getElementById('btn-scan-patroli').addEventListener('click', async () =
   document.getElementById('patroli-step-pilih').classList.add('hidden');
   document.getElementById('patroli-step-scan').classList.remove('hidden');
   const v = document.getElementById('patroli-video');
-  await startCamera(v, 'patroliscan');
+  const stream = await startCamera(v, 'patroliscan');
+  if (!stream) { resetPatroliScreen(); return; }
   mulaiScanQR(v, 'patroliscan', (kode) => {
     stopCameraByKey('patroliscan');
     const cocok = daftarTitikPatroli.find(t => t.kodeQr && t.kodeQr === kode);
     if (cocok) mulaiLaporPatroli(cocok.nama);
     else { showToast('QR tidak cocok dengan titik pos manapun.', false); resetPatroliScreen(); }
+  }, () => {
+    stopCameraByKey('patroliscan');
+    showToast('Gagal memuat pemindai QR. Periksa koneksi internet lalu coba lagi.', false);
+    resetPatroliScreen();
   });
 });
 document.getElementById('btn-batal-scan-patroli').addEventListener('click', () => { stopCameraByKey('patroliscan'); resetPatroliScreen(); });
@@ -1078,12 +1097,17 @@ document.getElementById('btn-scan-kegiatan').addEventListener('click', async () 
   document.getElementById('kegiatan-step-pilih').classList.add('hidden');
   document.getElementById('kegiatan-step-scan').classList.remove('hidden');
   const v = document.getElementById('kegiatan-video');
-  await startCamera(v, 'kegscan');
+  const stream = await startCamera(v, 'kegscan');
+  if (!stream) { resetKegiatanScreen(); return; }
   mulaiScanQR(v, 'kegscan', (kode) => {
     stopCameraByKey('kegscan');
     const cocok = daftarTugasKebersihan.find(t => t.kodeQr && t.kodeQr === kode);
     if (cocok) mulaiLaporKegiatan(cocok.namaTugas);
     else { showToast('QR tidak cocok dengan tugas manapun.', false); resetKegiatanScreen(); }
+  }, () => {
+    stopCameraByKey('kegscan');
+    showToast('Gagal memuat pemindai QR. Periksa koneksi internet lalu coba lagi.', false);
+    resetKegiatanScreen();
   });
 });
 document.getElementById('btn-batal-scan-kegiatan').addEventListener('click', () => { stopCameraByKey('kegscan'); resetKegiatanScreen(); });
