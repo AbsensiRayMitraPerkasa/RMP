@@ -599,7 +599,7 @@ async function muatDashboardOperasional(action, statsId, tableId) {
 }
 
 async function muatPersetujuan() {
-  if (peran !== 'internal') return;
+  if (!peran) return;
   const [resDaftar, resIjin] = await Promise.all([
     api('daftarPendaftaranBaru', { password: adminPassword }),
     api('daftarIjinAdmin', { password: adminPassword })
