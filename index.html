@@ -903,7 +903,12 @@ function muatHome() {
 
 async function refreshStatus() {
   const res = await api('statusUlang', { nama: sesi.nama, pin: sesi.pin });
-  if (res.sukses) sesi.status = res.status;
+  if (res.sukses) {
+    sesi.status = res.status;
+    sesi.bagianKerja = res.bagianKerja;
+    sesi.fotoUrl = res.fotoUrl || '';
+    localStorage.setItem('ray_karyawan_session_' + KODE_KLIEN, JSON.stringify(sesi));
+  }
 }
 
 async function muatRiwayatInline() {
@@ -1192,6 +1197,7 @@ document.getElementById('btn-kirim-kegiatan').addEventListener('click', async ()
   if (savedSesi) {
     sesi = JSON.parse(savedSesi);
     await muatDataMasterUntukSesi();
+    await refreshStatus();
     mulaiPantauLokasi();
     showScreen('home');
     return;
