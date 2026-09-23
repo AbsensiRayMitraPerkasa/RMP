@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sistem Absensi Karyawan — RAY</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains&#43;Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=JetBrains&#43;Mono:wght@400;700&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" defer></script>
 <style>
   :root{
     --bg:#eef1f6; --card:#ffffff; --border:#e3e7ee;
@@ -119,6 +120,9 @@
   .gps-banner .val{font-size:13px; font-weight:700; color:var(--red-text);}
   .gps-banner.ok .val{color:var(--green-text);}
   .gps-map{height:170px; border-radius:var(--radius-sm); overflow:hidden; border:1px solid var(--border); background:#e5e9ef;}
+  .gps-legend{display:flex; gap:16px; margin-top:8px; font-size:11.5px; color:var(--muted); font-weight:600;}
+  .gps-legend span{display:flex; align-items:center; gap:5px;}
+  .gps-legend i{width:9px; height:9px; border-radius:50%; display:inline-block;}
 
   .presensi-caption{display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:6px; font-family:var(--f-mono);}
 
@@ -288,6 +292,10 @@
       <div style="text-align:right;"><div class="lb">LOKASI TERDEKAT</div><div class="val" id="gps-lokasi" style="color:var(--text);">-</div></div>
     </div>
     <div class="gps-map" id="gps-map"></div>
+    <div class="gps-legend">
+      <span><i style="background:#1a9a56"></i>Lokasi Anda</span>
+      <span><i style="background:#17385c"></i>Titik Absensi</span>
+    </div>
   </div>
 
   <div class="card">
@@ -303,7 +311,6 @@
     </div>
   </div>
 
-  <button class="btn btn-outline" id="btn-goto-ijin">📝 Ajukan Ijin / Cuti</button>
   <button class="btn btn-outline hidden" id="btn-goto-patroli">🛡️ Lapor Patroli</button>
   <button class="btn btn-outline hidden" id="btn-goto-kegiatan">🧹 Laporan Kegiatan</button>
 
@@ -332,40 +339,6 @@
     <button class="btn btn-ghost" id="btn-batal-presensi">Batal</button>
   </div>
 </div>
-
-
-<section id="screen-ijin" class="screen hidden">
-  <div class="top-back"><button data-back="home">←</button><h2>Ajukan Ijin</h2></div>
-  <div class="card">
-    <label>Jenis Ijin</label>
-    <select id="ijin-jenis">
-      <option value="Sakit">Sakit</option>
-      <option value="Cuti Tahunan">Cuti Tahunan</option>
-      <option value="Izin Keperluan Pribadi">Izin Keperluan Pribadi</option>
-      <option value="Lainnya">Lainnya</option>
-    </select>
-
-    <label>Tanggal Ijin</label>
-    <input type="date" id="ijin-tanggal">
-
-    <label>Keterangan</label>
-    <textarea id="ijin-keterangan" placeholder="Jelaskan alasan singkat"></textarea>
-
-    <label>Foto Bukti (surat/foto)</label>
-    <div id="ijin-cam-open">
-      <button class="btn btn-outline" id="btn-buka-kamera-ijin">📷 Buka Kamera</button>
-    </div>
-    <div id="ijin-cam-live" class="hidden">
-      <div class="cam-wrap"><video id="ijin-video" autoplay playsinline muted></video><button class="cam-flip" id="btn-flip-ijin" type="button">🔄</button></div>
-      <div class="cam-actions"><button class="btn btn-navy" id="btn-shoot-ijin">📸 Ambil Foto</button></div>
-    </div>
-    <canvas id="ijin-canvas" class="hidden"></canvas>
-    <img id="ijin-shot" class="cam-shot hidden" style="margin-top:8px;">
-    <button class="btn btn-ghost hidden" id="btn-retake-ijin">Ambil ulang foto</button>
-
-    <button class="btn btn-navy" id="btn-kirim-ijin">Kirim Pengajuan</button>
-  </div>
-</section>
 
 
 <section id="screen-patroli" class="screen hidden">
@@ -508,7 +481,7 @@ let daftarTitikPatroli = [];
 let daftarTugasKebersihan = [];
 let posisiTerkini = null;        
 let watchId = null;
-let leafletMap = null, leafletMarker = null;
+let leafletMap = null, leafletMarker = null, leafletKantorMarker = null, leafletKantorCircle = null;
 
 async function api(action, payload) {
   try {
@@ -588,13 +561,11 @@ function showScreen(id) {
   stopAllCameras();
   window.scrollTo(0, 0);
 
-  if (id === 'ijin') resetIjinScreen();
   if (id === 'patroli') resetPatroliScreen();
   if (id === 'kegiatan') resetKegiatanScreen();
   if (id === 'home') muatHome();
 }
 document.querySelectorAll('[data-back]').forEach(el => el.addEventListener('click', () => showScreen(el.dataset.back)));
-document.getElementById('btn-goto-ijin').addEventListener('click', () => showScreen('ijin'));
 document.getElementById('btn-goto-patroli').addEventListener('click', () => showScreen('patroli'));
 document.getElementById('btn-goto-kegiatan').addEventListener('click', () => showScreen('kegiatan'));
 document.getElementById('link-daftar').addEventListener('click', (e) => { e.preventDefault(); showScreen('daftar'); });
@@ -631,7 +602,10 @@ async function startCamera(videoEl, key, defaultFacing) {
   cameraFacing[key] = facing;
   stopCameraByKey(key);
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facing } }, audio: false });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: facing }, width: { ideal: 960, max: 1280 }, height: { ideal: 1280, max: 1280 } },
+      audio: false
+    });
     videoEl.srcObject = stream;
     cameraStreams[key] = stream;
     return stream;
@@ -732,12 +706,31 @@ function updatePosisi(lat, lng, akurasi) {
 
   if (window.L) {
     if (!leafletMap) {
-      leafletMap = L.map('gps-map', { zoomControl: true, attributionControl: false }).setView([lat, lng], 16);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(leafletMap);
-      leafletMarker = L.marker([lat, lng]).addTo(leafletMap);
+      leafletMap = L.map('gps-map', {
+        zoomControl: false, attributionControl: false, dragging: false,
+        scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, touchZoom: false, keyboard: false
+      }).setView([lat, lng], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(leafletMap);
+      leafletMarker = L.circleMarker([lat, lng], { radius: 8, color: '#1a9a56', weight: 2, fillColor: '#1a9a56', fillOpacity: .9 })
+        .addTo(leafletMap).bindPopup('Lokasi Anda');
     } else {
       leafletMarker.setLatLng([lat, lng]);
-      leafletMap.setView([lat, lng]);
+    }
+
+    if (terdekat) {
+      const kLat = terdekat.lokasi.lat, kLng = terdekat.lokasi.lng;
+      if (!leafletKantorMarker) {
+        leafletKantorMarker = L.circleMarker([kLat, kLng], { radius: 8, color: '#17385c', weight: 2, fillColor: '#17385c', fillOpacity: .9 })
+          .addTo(leafletMap).bindPopup('Titik Absensi: ' + terdekat.lokasi.nama);
+        leafletKantorCircle = L.circle([kLat, kLng], { radius: terdekat.lokasi.radius, color: '#17385c', weight: 1, dashArray: '4,4', fillColor: '#17385c', fillOpacity: .08 })
+          .addTo(leafletMap);
+      } else {
+        leafletKantorMarker.setLatLng([kLat, kLng]).setPopupContent('Titik Absensi: ' + terdekat.lokasi.nama);
+        leafletKantorCircle.setLatLng([kLat, kLng]).setRadius(terdekat.lokasi.radius);
+      }
+      leafletMap.fitBounds(L.latLngBounds([[lat, lng], [kLat, kLng]]), { padding: [26, 26], maxZoom: 17 });
+    } else {
+      leafletMap.setView([lat, lng], 16);
     }
   }
   cekTombolPresensi();
@@ -961,56 +954,6 @@ document.getElementById('btn-kirim-presensi').addEventListener('click', async ()
     await refreshStatus();
     muatHome();
   }
-});
-
-let ijinFotoB64 = null;
-function resetIjinScreen() {
-  ijinFotoB64 = null;
-  document.getElementById('ijin-jenis').value = 'Sakit';
-  document.getElementById('ijin-tanggal').value = '';
-  document.getElementById('ijin-keterangan').value = '';
-  document.getElementById('ijin-cam-open').classList.remove('hidden');
-  document.getElementById('ijin-cam-live').classList.add('hidden');
-  document.getElementById('ijin-shot').classList.add('hidden');
-  document.getElementById('btn-retake-ijin').classList.add('hidden');
-}
-document.getElementById('btn-buka-kamera-ijin').addEventListener('click', async () => {
-  document.getElementById('ijin-cam-open').classList.add('hidden');
-  document.getElementById('ijin-cam-live').classList.remove('hidden');
-  await startCamera(document.getElementById('ijin-video'), 'ijin');
-});
-document.getElementById('btn-flip-ijin').addEventListener('click', () => toggleCamera(document.getElementById('ijin-video'), 'ijin'));
-document.getElementById('btn-shoot-ijin').addEventListener('click', () => {
-  const dataUrl = captureFrame(document.getElementById('ijin-video'), document.getElementById('ijin-canvas'));
-  ijinFotoB64 = base64Of(dataUrl);
-  document.getElementById('ijin-shot').src = dataUrl;
-  document.getElementById('ijin-shot').classList.remove('hidden');
-  document.getElementById('ijin-cam-live').classList.add('hidden');
-  document.getElementById('btn-retake-ijin').classList.remove('hidden');
-  stopCameraByKey('ijin');
-});
-document.getElementById('btn-retake-ijin').addEventListener('click', async () => {
-  ijinFotoB64 = null;
-  document.getElementById('ijin-shot').classList.add('hidden');
-  document.getElementById('btn-retake-ijin').classList.add('hidden');
-  document.getElementById('ijin-cam-live').classList.remove('hidden');
-  await startCamera(document.getElementById('ijin-video'), 'ijin');
-});
-document.getElementById('btn-kirim-ijin').addEventListener('click', async () => {
-  const jenis = document.getElementById('ijin-jenis').value;
-  const tanggal = document.getElementById('ijin-tanggal').value;
-  const ket = document.getElementById('ijin-keterangan').value.trim();
-  if (!tanggal) return showToast('Tanggal ijin harus diisi.', false);
-  if (!ijinFotoB64) return showToast('Foto bukti wajib dilampirkan.', false);
-  const btn = document.getElementById('btn-kirim-ijin');
-  setBusy(btn, true, 'Mengirim...', 'Kirim Pengajuan');
-  const res = await api('ajukanIjin', {
-    nama: sesi.nama, pin: sesi.pin, jenisIjin: jenis, tanggalIjin: tanggal,
-    keterangan: ket, buktiBase64: ijinFotoB64, mimeType: 'image/jpeg'
-  });
-  setBusy(btn, false, '', 'Kirim Pengajuan');
-  showToast(res.pesan, res.sukses);
-  if (res.sukses) setTimeout(() => showScreen('home'), 1000);
 });
 
 let patroliState = { namaPos: null, fotoB64: null };
