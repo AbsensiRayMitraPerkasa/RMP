@@ -126,6 +126,8 @@
   .empty-state .big{font-size:32px; margin-bottom:6px;}
 
   .foto-thumb{width:44px; height:44px; object-fit:cover; border-radius:8px; border:1px solid var(--border); display:block;}
+  .kd-foto-row{display:flex; align-items:center; gap:10px;}
+  .kd-foto-row .foto-thumb{width:52px; height:52px;}
 
   .chat-log{display:flex; flex-direction:column; gap:12px; margin-bottom:14px; max-height:60vh; overflow-y:auto; padding-right:4px;}
   .chat-msg{max-width:80%; padding:10px 13px; border-radius:var(--radius-sm); font-size:14px; line-height:1.5; white-space:pre-wrap;}
@@ -659,6 +661,7 @@ const ENTITAS_KELOLA = {
     editAction: 'editKaryawanAdmin', delAction: 'hapusKaryawanAdmin',
     fields: [
       { key: 'nama', label: 'Nama', type: 'text' },
+      { key: 'fotoUrl', label: 'Foto Karyawan', type: 'foto' },
       { key: 'noHp', label: 'No HP (opsional)', type: 'text' },
       { key: 'alamat', label: 'Alamat (opsional)', type: 'text' },
       { key: 'bagianKerja', label: 'Bagian Kerja', type: 'select', options: ['Security','Cleaning Service','Administrasi','Lainnya'] },
@@ -731,6 +734,8 @@ async function muatKelola(key) {
   document.getElementById('kd-' + key + '-form').addEventListener('submit', e => { e.preventDefault(); simpanKelola(key); });
 }
 
+const kelolaFotoPending = {};
+
 function renderFormKelola(key, box, cfg) {
   const formHtml =
     '<div class="panel">' +
@@ -742,6 +747,13 @@ function renderFormKelola(key, box, cfg) {
             return '<label>' + f.label + '</label><select id="kd-' + key + '-' + f.key + '">' +
               f.options.map(o => '<option value="' + o + '">' + o + '</option>').join('') + '</select>';
           }
+          if (f.type === 'foto') {
+            return '<label>' + f.label + ' (opsional)</label>' +
+              '<div class="kd-foto-row">' +
+                '<img id="kd-' + key + '-' + f.key + '-preview" class="foto-thumb hidden" alt="Preview foto">' +
+                '<input type="file" accept="image/*" id="kd-' + key + '-' + f.key + '">' +
+              '</div>';
+          }
           return '<label>' + f.label + '</label><input type="' + f.type + '" id="kd-' + key + '-' + f.key + '">';
         }).join('') +
         '<div class="kd-form-row">' +
@@ -750,8 +762,49 @@ function renderFormKelola(key, box, cfg) {
         '</div>' +
       '</form>' +
     '</div>';
-  
+
   box.innerHTML = formHtml + '<div id="kd-' + key + '-tabel"></div>';
+
+  cfg.fields.filter(f => f.type === 'foto').forEach(f => {
+    const storageKey = key + ':' + f.key;
+    document.getElementById('kd-' + key + '-' + f.key).addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const dataUrl = await resizeImageFileToDataUrl(file, 600);
+        kelolaFotoPending[storageKey] = { base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' };
+        const preview = document.getElementById('kd-' + key + '-' + f.key + '-preview');
+        preview.src = dataUrl;
+        preview.classList.remove('hidden');
+      } catch (err) {
+        showToast('Gagal membaca file gambar.', false);
+      }
+    });
+  });
+}
+
+function resizeImageFileToDataUrl(file, maxDim) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round(height * maxDim / width); width = maxDim; }
+          else { width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function renderTabelKelola(key, box, cfg) {
@@ -765,7 +818,12 @@ function renderTabelKelola(key, box, cfg) {
       '</tr></thead><tbody>' +
         (daftar.length
           ? daftar.map(d =>
-              '<tr>' + cfg.fields.map(f => '<td>' + (d[f.key] !== undefined && d[f.key] !== null ? d[f.key] : '') + '</td>').join('') +
+              '<tr>' + cfg.fields.map(f => {
+                if (f.type === 'foto') {
+                  return '<td>' + (d[f.key] ? '<img class="foto-thumb" src="' + d[f.key] + '" alt="Foto ' + (d.nama || '') + '" loading="lazy">' : '-') + '</td>';
+                }
+                return '<td>' + (d[f.key] !== undefined && d[f.key] !== null ? d[f.key] : '') + '</td>';
+              }).join('') +
               '<td class="action-cell">' +
                 '<button class="btn btn-outline btn-sm" onclick="isiFormEdit(\'' + key + '\', \'' + d.id + '\')">Edit</button>' +
                 (cfg.qr ? '<button class="btn btn-outline btn-sm" onclick="tampilkanQr(\'' + String(d[cfg.qrField] || '').replace(/'/g,"\\'") + '\', \'' + String(d[cfg.qrJudulField] || '').replace(/'/g,"\\'") + '\')">QR</button>' : '') +
@@ -784,6 +842,17 @@ function isiFormEdit(key, id) {
   if (!item) return;
   document.getElementById('kd-' + key + '-baris').value = id;
   cfg.fields.forEach(f => {
+    if (f.type === 'foto') {
+      delete kelolaFotoPending[key + ':' + f.key];
+      const inputEl = document.getElementById('kd-' + key + '-' + f.key);
+      if (inputEl) inputEl.value = '';
+      const preview = document.getElementById('kd-' + key + '-' + f.key + '-preview');
+      if (preview) {
+        if (item[f.key]) { preview.src = item[f.key]; preview.classList.remove('hidden'); }
+        else { preview.src = ''; preview.classList.add('hidden'); }
+      }
+      return;
+    }
     const el = document.getElementById('kd-' + key + '-' + f.key);
     if (el) el.value = (item[f.key] !== undefined && item[f.key] !== null) ? item[f.key] : '';
   });
@@ -793,14 +862,31 @@ function isiFormEdit(key, id) {
 function resetFormKelola(key) {
   const cfg = ENTITAS_KELOLA[key];
   document.getElementById('kd-' + key + '-baris').value = '';
-  cfg.fields.forEach(f => { const el = document.getElementById('kd-' + key + '-' + f.key); if (el) el.value = ''; });
+  cfg.fields.forEach(f => {
+    if (f.type === 'foto') {
+      delete kelolaFotoPending[key + ':' + f.key];
+      const inputEl = document.getElementById('kd-' + key + '-' + f.key);
+      if (inputEl) inputEl.value = '';
+      const preview = document.getElementById('kd-' + key + '-' + f.key + '-preview');
+      if (preview) { preview.src = ''; preview.classList.add('hidden'); }
+      return;
+    }
+    const el = document.getElementById('kd-' + key + '-' + f.key); if (el) el.value = '';
+  });
   document.getElementById('kd-' + key + '-formtitle').textContent = 'Tambah ' + cfg.title;
 }
 async function simpanKelola(key) {
   const cfg = ENTITAS_KELOLA[key];
   const id = document.getElementById('kd-' + key + '-baris').value;
   const payload = { password: adminPassword };
-  cfg.fields.forEach(f => { payload[f.key] = document.getElementById('kd-' + key + '-' + f.key).value.trim(); });
+  cfg.fields.forEach(f => {
+    if (f.type === 'foto') {
+      const pending = kelolaFotoPending[key + ':' + f.key];
+      if (pending) { payload.fotoBase64 = pending.base64; payload.mimeType = pending.mimeType; }
+      return;
+    }
+    payload[f.key] = document.getElementById('kd-' + key + '-' + f.key).value.trim();
+  });
   let res;
   if (id) {
     payload.id = id;
