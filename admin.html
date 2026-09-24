@@ -98,6 +98,11 @@
   table{width:100%; border-collapse:collapse; font-size:13px;}
   th,td{text-align:left; padding:9px 8px; border-bottom:1px solid var(--border); white-space:nowrap;}
   th{color:var(--muted); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.3px;}
+  th .muted{text-transform:none; letter-spacing:0; font-size:11px;}
+
+  .kpi-badge{display:inline-block; padding:3px 9px; border-radius:99px; font-weight:700; font-size:12.5px;}
+  .kpi-badge.ok{background:var(--green-bg); color:var(--green-text);}
+  .kpi-badge.bad{background:var(--red-bg); color:var(--red-text);}
   td.num,th.num{font-family:var(--f-mono); text-align:right;}
   .table-scroll{overflow-x:auto;}
 
@@ -204,6 +209,7 @@
     <button data-tab="absensi" class="active">Dashboard Absensi</button>
     <button data-tab="patroli">Dashboard Patroli</button>
     <button data-tab="cleaning">Dashboard Cleaning</button>
+    <button data-tab="penilaian">Penilaian &amp; Evaluasi</button>
     <button data-tab="kelola" id="tab-btn-kelola" class="hidden">Kelola Data</button>
     <button data-tab="persetujuan" id="tab-btn-persetujuan" class="hidden">Persetujuan</button>
     <button data-tab="ai">Tanya AI</button>
@@ -282,7 +288,65 @@
       </div>
     </section>
 
-    
+
+    <section class="tabpanel" id="tab-penilaian">
+      <div class="panel">
+        <div class="section-title">Penilaian &amp; Evaluasi Kinerja</div>
+        <p class="muted" style="font-size:13px; margin-top:-6px;">Pilih bagian kerja untuk melihat KPI staf pada bulan &amp; tahun yang difilter di atas.</p>
+        <label>Bagian Kerja</label>
+        <select id="penilaian-bagian" style="max-width:260px;">
+          <option value="Security">Security</option>
+          <option value="Cleaning Service">Cleaning Service</option>
+          <option value="Administrasi">Administrasi</option>
+          <option value="Lainnya">Lainnya</option>
+        </select>
+      </div>
+
+      <div class="panel">
+        <div class="section-title">KPI Absensi</div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th>Nama</th>
+              <th class="num">Tingkat Kehadiran<br><span class="muted">Target &ge;95-98%</span></th>
+              <th class="num">Ketepatan Waktu<br><span class="muted">Target &ge;95%</span></th>
+              <th class="num">Rata&sup2; Telat<br><span class="muted">Target &lt;10 menit</span></th>
+              <th class="num">Mangkir<br><span class="muted">Target 0</span></th>
+              <th class="num">Validitas Lokasi<br><span class="muted">Target 100%</span></th>
+            </tr></thead>
+            <tbody id="penilaian-absensi-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" id="penilaian-patroli-panel">
+        <div class="section-title">KPI Patroli (khusus Security)</div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th>Nama</th>
+              <th class="num">Ketepatan Rute<br><span class="muted">Target 100%</span></th>
+              <th class="num">Interval Rata&sup2;<br><span class="muted">Acuan tiap 2 jam</span></th>
+              <th class="num">Kelengkapan Dokumentasi<br><span class="muted">Target 100%</span></th>
+            </tr></thead>
+            <tbody id="penilaian-patroli-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="section-title">Parameter Belum Tersedia</div>
+        <p class="muted" style="font-size:13px;">8 parameter berikut butuh struktur data yang belum ada di sistem, jadi belum dihitung otomatis di sini:</p>
+        <ul class="muted" style="font-size:13px; padding-left:18px; margin:0;">
+          <li>Kepatuhan jam pulang &amp; Kepatuhan shift/rotasi — perlu jadwal jam pulang per shift (saat ini hanya jam masuk yang diatur)</li>
+          <li>Kepatuhan jadwal patroli — perlu target jumlah patroli terjadwal per hari/shift</li>
+          <li>Waktu tempuh patroli &amp; Jumlah checkpoint terlewat — perlu pengelompokan laporan per putaran patroli</li>
+          <li>Kecepatan respons insiden, Jumlah laporan kejadian, Tingkat kejadian tak terdeteksi — perlu modul laporan insiden (belum ada di sistem)</li>
+        </ul>
+      </div>
+    </section>
+
+
     <section class="tabpanel" id="tab-kelola">
       <div class="subtabs" data-target="grp-kelola">
         <button data-sub="karyawan" class="active">Karyawan</button>
@@ -503,6 +567,7 @@ document.getElementById('btn-terapkan-filter').addEventListener('click', () => {
   filterBulan = parseInt(document.getElementById('filter-bulan').value, 10);
   filterTahun = parseInt(document.getElementById('filter-tahun').value, 10);
   muatSemuaDashboard();
+  if (document.getElementById('tab-penilaian').classList.contains('active')) muatPenilaian();
 });
 
 document.getElementById('tabs').addEventListener('click', e => {
@@ -515,6 +580,7 @@ document.getElementById('tabs').addEventListener('click', e => {
   if (btn.dataset.tab === 'persetujuan') muatPersetujuan();
   if (btn.dataset.tab === 'kelola') { muatKelola('karyawan'); initQrWeb(); }
   if (btn.dataset.tab === 'rekap') muatLokasiRekap();
+  if (btn.dataset.tab === 'penilaian') muatPenilaian();
 });
 
 document.querySelectorAll('.subtabs[data-target]').forEach(group => {
@@ -623,6 +689,45 @@ async function muatDashboardOperasional(action, statsId, tableId) {
     '<tr><td>'+s.nama+'</td><td class="num">'+s.jumlahLapor+'</td><td class="num">'+s.rataRataPerHari+'</td><td class="mono">'+s.terakhirLapor+'</td></tr>'
   ).join('') || '<tr><td colspan="4" class="muted">Belum ada staf terdaftar untuk divisi ini.</td></tr>';
 }
+
+function kpiBadge(text, tercapai) {
+  return '<span class="kpi-badge ' + (tercapai ? 'ok' : 'bad') + '">' + text + '</span>';
+}
+
+async function muatPenilaian() {
+  const bagian = document.getElementById('penilaian-bagian').value;
+  const res = await api('ambilPenilaianKPI', { password: adminPassword, bulan: filterBulan, tahun: filterTahun, bagianKerja: bagian });
+  if (!res.sukses) return showToast(res.pesan, false);
+  const kpi = res.kpi;
+
+  document.getElementById('penilaian-absensi-table').innerHTML = kpi.perStaf.length ? kpi.perStaf.map((s) =>
+    '<tr>' +
+      '<td>' + s.nama + '</td>' +
+      '<td class="num">' + kpiBadge(s.persenKehadiran + '%', s.persenKehadiran >= 95) + '</td>' +
+      '<td class="num">' + kpiBadge(s.tepatWaktu + '%', s.tepatWaktu >= 95) + '</td>' +
+      '<td class="num">' + kpiBadge(s.rataRataTelat + ' menit', s.rataRataTelat < 10) + '</td>' +
+      '<td class="num">' + kpiBadge(s.mangkir + ' hari', s.mangkir === 0) + '</td>' +
+      '<td class="num">' + kpiBadge(s.geofencing + '%', s.geofencing === 100) + '</td>' +
+    '</tr>'
+  ).join('') : '<tr><td colspan="6" class="muted">Belum ada staf di bagian kerja ini.</td></tr>';
+
+  const panelPatroli = document.getElementById('penilaian-patroli-panel');
+  if (bagian === 'Security') {
+    panelPatroli.classList.remove('hidden');
+    const perStafPatroli = kpi.perStafPatroli || [];
+    document.getElementById('penilaian-patroli-table').innerHTML = perStafPatroli.length ? perStafPatroli.map((s) =>
+      '<tr>' +
+        '<td>' + s.nama + '</td>' +
+        '<td class="num">' + kpiBadge(s.checkpointDiscan + '/' + s.totalCheckpoint + ' (' + s.ketepatanRute + '%)', s.ketepatanRute === 100) + '</td>' +
+        '<td class="num">' + (s.rataRataInterval != null ? kpiBadge(s.rataRataInterval + ' menit', s.rataRataInterval <= 120) : '<span class="muted">-</span>') + '</td>' +
+        '<td class="num">' + kpiBadge(s.kelengkapanDokumentasi + '%', s.kelengkapanDokumentasi === 100) + '</td>' +
+      '</tr>'
+    ).join('') : '<tr><td colspan="4" class="muted">Belum ada laporan patroli pada periode ini.</td></tr>';
+  } else {
+    panelPatroli.classList.add('hidden');
+  }
+}
+document.getElementById('penilaian-bagian').addEventListener('change', muatPenilaian);
 
 async function muatPersetujuan() {
   if (!peran) return;
