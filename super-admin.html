@@ -180,10 +180,17 @@
       </div>
     </div>
     <div class="info-row">
-      <div class="lb">Link Admin Klien</div>
+      <div class="lb">Link Admin Ray</div>
       <div class="copy-row">
         <input type="text" id="info-link-admin" readonly>
         <button class="btn btn-outline btn-sm" data-copy="info-link-admin" type="button">Salin</button>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="lb">Link Admin Klien</div>
+      <div class="copy-row">
+        <input type="text" id="info-link-admin-klien" readonly>
+        <button class="btn btn-outline btn-sm" data-copy="info-link-admin-klien" type="button">Salin</button>
       </div>
     </div>
     <div class="info-row">
@@ -295,7 +302,14 @@ function slugKode(teks) {
 }
 function linkUntuk(kode) {
   const base = location.href.replace(/super-admin\.html.*$/, '');
-  return { absensi: base + 'index.html?klien=' + encodeURIComponent(kode), admin: base + 'admin.html?klien=' + encodeURIComponent(kode) };
+  return {
+    absensi: base + 'index.html?klien=' + encodeURIComponent(kode),
+    admin: base + 'admin.html?klien=' + encodeURIComponent(kode),
+    // Link khusus untuk klien: server menolak password Admin Ray di link ini
+    // (lihat parameter "akses" di admin.html & otorisasiAdmin di backend),
+    // jadi link ini aman dibagikan ke klien tanpa risiko dipakai sebagai Admin Ray.
+    adminKlien: base + 'admin.html?klien=' + encodeURIComponent(kode) + '&akses=klien',
+  };
 }
 
 // ---------- LOGIN ----------
@@ -438,6 +452,7 @@ function tampilkanInfoQr(klien, password) {
   const link = linkUntuk(klien.kodeKlien);
   document.getElementById('info-link-absensi').value = link.absensi;
   document.getElementById('info-link-admin').value = link.admin;
+  document.getElementById('info-link-admin-klien').value = link.adminKlien;
   document.getElementById('info-password').value = password || '(tidak tersedia)';
   const box = document.getElementById('qr-box');
   box.innerHTML = '';

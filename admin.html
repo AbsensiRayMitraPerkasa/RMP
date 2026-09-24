@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains&#43;Mono:wght@500;600&amp;display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#eef1f6; --card:#ffffff; --border:#e3e7ee;
@@ -203,9 +204,10 @@
     <button data-tab="absensi" class="active">Dashboard Absensi</button>
     <button data-tab="patroli">Dashboard Patroli</button>
     <button data-tab="cleaning">Dashboard Cleaning</button>
-    <button data-tab="kelola" id="tab-btn-kelola">Kelola Data</button>
-    <button data-tab="persetujuan" id="tab-btn-persetujuan">Persetujuan</button>
+    <button data-tab="kelola" id="tab-btn-kelola" class="hidden">Kelola Data</button>
+    <button data-tab="persetujuan" id="tab-btn-persetujuan" class="hidden">Persetujuan</button>
     <button data-tab="ai">Tanya AI</button>
+    <button data-tab="rekap" id="tab-btn-rekap" class="hidden">Rekap Excel</button>
   </nav>
 
   <main>
@@ -334,6 +336,17 @@
         </div>
       </div>
     </section>
+
+
+    <section class="tabpanel" id="tab-rekap">
+      <div class="panel">
+        <div class="section-title">Rekap Absensi per Lokasi (Excel)</div>
+        <p class="muted" style="font-size:13px; margin-top:-6px;">Mengunduh rekap absensi untuk bulan &amp; tahun yang sedang difilter di atas, disaring per lokasi kerja klien ini. Khusus Admin Ray.</p>
+        <label>Lokasi</label>
+        <select id="rekap-lokasi"><option value="">Semua Lokasi</option></select>
+        <button class="btn btn-navy" id="btn-unduh-rekap" style="width:auto;">Unduh Excel</button>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -355,10 +368,17 @@
 const API_URL = 'https://rxmjsvzkciwgpdatgqkd.supabase.co/functions/v1/api';
 const SUPABASE_ANON_KEY = 'sb_publishable_Pd8aIKqO_vo-tZIm1ndvdg_yDlqVu40';
 const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
+// Link "Admin Klien" dari Super Admin membawa ?akses=klien. Dengan ini
+// dikirim ke server, password Admin Ray (ADMIN_PASSWORD) tidak akan pernah
+// diterima lewat link ini, jadi link yang dipegang klien tidak bisa dipakai
+// untuk masuk sebagai Admin Ray walau passwordnya bocor.
+const AKSES_PARAM = new URLSearchParams(location.search).get('akses') || '';
+const SESSION_KEY = 'ray_admin_session_' + KODE_KLIEN + (AKSES_PARAM ? '_' + AKSES_PARAM : '');
 
 let adminPassword = '';
 let peran = '';
 let filterBulan, filterTahun;
+const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
 async function api(action, payload) {
   try {
@@ -369,7 +389,7 @@ async function api(action, payload) {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
       },
-      body: JSON.stringify(Object.assign({ action, kodeKlien: KODE_KLIEN }, payload || {}))
+      body: JSON.stringify(Object.assign({ action, kodeKlien: KODE_KLIEN, akses: AKSES_PARAM }, payload || {}))
     });
     return await res.json();
   } catch (e) {
@@ -439,7 +459,7 @@ document.getElementById('btn-login-admin').addEventListener('click', async () =>
   peran = res.peran;
   
   // Persistensi Sesi
-  localStorage.setItem('ray_admin_session_' + KODE_KLIEN, JSON.stringify({ adminPassword, peran }));
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ adminPassword, peran }));
   
   masukKeApp();
 });
@@ -450,7 +470,7 @@ document.getElementById('btn-logout-admin').addEventListener('click', () => {
   adminPassword = ''; peran = '';
   
   // Hapus Sesi
-  localStorage.removeItem('ray_admin_session_' + KODE_KLIEN);
+  localStorage.removeItem(SESSION_KEY);
   
   document.getElementById('app').classList.remove('show');
   document.getElementById('screen-login').style.display = 'flex';
@@ -461,16 +481,19 @@ function masukKeApp() {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('app').classList.add('show');
   const roleTag = document.getElementById('role-tag');
-  roleTag.textContent = peran === 'super' ? 'SUPER ADMIN' : 'ADMIN KLIEN';
-  roleTag.classList.toggle('internal', peran === 'super');
-  document.getElementById('tab-btn-persetujuan').classList.remove('hidden');
-  document.getElementById('tab-btn-kelola').classList.remove('hidden');
+  const adalahRay = peran === 'super';
+  roleTag.textContent = adalahRay ? 'ADMIN RAY' : 'ADMIN KLIEN';
+  roleTag.classList.toggle('internal', adalahRay);
+  // Menu "Kelola Data", "Persetujuan", dan "Rekap Excel" khusus Admin Ray.
+  // Admin Klien hanya melihat 4 dashboard + Tanya AI.
+  ['tab-btn-kelola', 'tab-btn-persetujuan', 'tab-btn-rekap'].forEach((id) => {
+    document.getElementById(id).classList.toggle('hidden', !adalahRay);
+  });
 
   const now = new Date();
   filterBulan = now.getMonth() + 1; filterTahun = now.getFullYear();
   const selBulan = document.getElementById('filter-bulan');
-  const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-  selBulan.innerHTML = namaBulan.map((n,i) => '<option value="'+(i+1)+'">'+n+'</option>').join('');
+  selBulan.innerHTML = NAMA_BULAN.map((n,i) => '<option value="'+(i+1)+'">'+n+'</option>').join('');
   selBulan.value = filterBulan;
   document.getElementById('filter-tahun').value = filterTahun;
 
@@ -491,6 +514,7 @@ document.getElementById('tabs').addEventListener('click', e => {
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
   if (btn.dataset.tab === 'persetujuan') muatPersetujuan();
   if (btn.dataset.tab === 'kelola') { muatKelola('karyawan'); initQrWeb(); }
+  if (btn.dataset.tab === 'rekap') muatLokasiRekap();
 });
 
 document.querySelectorAll('.subtabs[data-target]').forEach(group => {
@@ -968,12 +992,44 @@ async function kirimChat() {
   pushChat('ai', res.sukses ? res.jawaban : ('⚠️ ' + res.pesan));
 }
 
+// ---------- REKAP EXCEL PER LOKASI (khusus Admin Ray) ----------
+async function muatLokasiRekap() {
+  const sel = document.getElementById('rekap-lokasi');
+  const res = await api('getDaftarLokasiAdmin', { password: adminPassword });
+  const daftar = (res.sukses && res.daftar) ? res.daftar : [];
+  sel.innerHTML = '<option value="">Semua Lokasi</option>' +
+    daftar.map(l => '<option value="' + l.nama + '">' + l.nama + '</option>').join('');
+}
+document.getElementById('btn-unduh-rekap').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-unduh-rekap');
+  const lokasiPilihan = document.getElementById('rekap-lokasi').value;
+  setBusy(btn, true, 'Menyiapkan...', 'Unduh Excel');
+  const res = await api('daftarAbsensiDetailAdmin', { password: adminPassword, bulan: filterBulan, tahun: filterTahun });
+  setBusy(btn, false, '', 'Unduh Excel');
+  if (!res.sukses) return showToast(res.pesan, false);
+  let daftar = res.daftar || [];
+  if (lokasiPilihan) daftar = daftar.filter(r => r.namaLokasi === lokasiPilihan);
+  if (!daftar.length) return showToast('Tidak ada data absensi untuk lokasi & periode ini.', false);
+
+  const rows = daftar.map(r => ({
+    Tanggal: r.tanggal, Nama: r.nama, 'Bagian Kerja': r.bagianKerja, Jenis: r.jenisAbsen,
+    Jam: r.waktu, Lokasi: r.namaLokasi, 'Jarak (m)': r.jarak != null ? r.jarak : '',
+    'Akurasi GPS (m)': r.akurasi != null ? r.akurasi : '', Foto: r.fotoUrl || '',
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Rekap Absensi');
+  const namaLokasiFile = lokasiPilihan ? lokasiPilihan.replace(/[^a-z0-9]+/gi, '_') : 'SemuaLokasi';
+  const namaFile = 'Rekap_Absensi_' + KODE_KLIEN + '_' + namaLokasiFile + '_' + NAMA_BULAN[filterBulan - 1] + filterTahun + '.xlsx';
+  XLSX.writeFile(wb, namaFile);
+});
+
 // STARTUP AWAL + CEK SESI
 (async () => {
   await muatInfoSistem();
   if (!KODE_KLIEN) return;
   
-  const saved = localStorage.getItem('ray_admin_session_' + KODE_KLIEN);
+  const saved = localStorage.getItem(SESSION_KEY);
   if (saved) {
     const s = JSON.parse(saved);
     adminPassword = s.adminPassword;
