@@ -32,7 +32,7 @@
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
-  body{background:var(--bg); color:var(--text); font-family:var(--f-body); min-height:100vh; min-height:100dvh; -webkit-tap-highlight-color:transparent; padding-bottom:80px;}
+  body{background:var(--bg); color:var(--text); font-family:var(--f-body); min-height:100vh; min-height:100dvh; -webkit-tap-highlight-color:transparent; padding-bottom:70px;}
   body::before{
     content:''; position:fixed; inset:0;
     background-image:url('logo-watermark.png'); background-repeat:no-repeat; background-position:center 38%;
@@ -46,7 +46,7 @@
   a:hover{text-decoration:underline;}
   button{font-family:var(--f-body);}
 
-  .screen{max-width:480px; margin:0 auto; padding:0 14px 26px;}
+  .screen{max-width:480px; margin:0 auto; padding:0 14px 18px;}
   .center-screen{min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; justify-content:center; padding:18px 14px;}
 
 
@@ -66,10 +66,14 @@
 
   .card{
     background:rgba(255,255,255,.96); backdrop-filter:blur(1px); -webkit-backdrop-filter:blur(1px);
-    border:1px solid var(--border); border-radius:var(--radius);
-    padding:18px 16px; margin:12px 0; box-shadow:var(--shadow); position:relative; z-index:1;
+    border:1px solid rgba(23,56,92,.35); border-radius:var(--radius);
+    padding:14px 14px; margin:10px 0; box-shadow:var(--shadow); position:relative; z-index:1;
   }
-  .hr-sep{border-top:1px solid var(--border); margin-top:14px; padding-top:14px;}
+  .card-id-clock{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .id-clock{text-align:right; flex-shrink:0;}
+  .id-clock .clock-date{text-align:right; margin:0;}
+  .id-clock .clock-time{text-align:right; margin:2px 0 0;}
+  .card-pill-wrap{display:inline-flex;}
 
    
   .login-card{max-width:420px; margin:0 auto; width:100%;}
@@ -101,57 +105,56 @@
   .btn-row .btn{margin-top:0;}
 
    
-  .id-row{display:flex; align-items:center; gap:10px;}
+  .id-row{display:flex; align-items:center; gap:9px;}
   .avatar{
-    width:38px; height:38px; border-radius:11px; background:var(--navy); color:#fff;
-    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;
+    width:34px; height:34px; border-radius:10px; background:var(--navy); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13.5px; flex-shrink:0;
     overflow:hidden;
   }
   .avatar img{width:100%; height:100%; object-fit:cover;}
-  .id-name{font-size:14.5px; font-weight:700;}
-  .id-role{font-size:11.5px; color:var(--muted); margin-top:1px;}
+  .id-name{font-size:14px; font-weight:700;}
+  .id-role{font-size:11px; color:var(--muted); margin-top:1px;}
 
-  .home-clock-block{border-top:1px solid var(--border); margin-top:14px; padding-top:14px;}
-  .clock-date{text-align:center; font-size:12px; color:var(--muted); font-weight:600;}
-  .clock-time{text-align:center; font-family:var(--f-mono); font-size:26px; font-weight:700; color:var(--navy); margin:4px 0 10px;}
+  .clock-date{text-align:center; font-size:11.5px; color:var(--muted); font-weight:600;}
+  .clock-time{text-align:center; font-family:var(--f-mono); font-size:20px; font-weight:700; color:var(--navy); margin:2px 0 0;}
   .pill-row{display:flex; gap:8px; justify-content:center;}
   .pill{
-    font-size:11px; font-weight:600; padding:5px 11px; border-radius:99px; background:var(--navy-soft); color:var(--navy);
+    font-size:11px; font-weight:600; padding:5px 11px; border-radius:99px; background:var(--navy-soft); color:var(--navy); white-space:nowrap;
   }
   .pill.done{background:var(--green-bg); color:var(--green-text);}
 
 
-  .gps-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
-  .gps-head .ttl{font-size:13px; font-weight:700; display:flex; align-items:center; gap:6px;}
+  .gps-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .gps-head .ttl{font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:6px;}
   .gps-head .ttl .dot{width:7px; height:7px; border-radius:50%; background:var(--green); display:inline-block;}
   .gps-head a{font-size:11.5px; font-weight:600;}
-  .gps-stats{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;}
-  .gps-stat{background:var(--navy-soft); border-radius:var(--radius-sm); padding:9px 10px;}
+  .gps-stats{display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:8px;}
+  .gps-stat{background:var(--navy-soft); border-radius:var(--radius-sm); padding:7px 9px;}
   .gps-stat .lb{font-size:9.5px; color:var(--muted); font-weight:700; letter-spacing:.3px;}
-  .gps-stat .val{font-size:14px; font-weight:700; font-family:var(--f-mono); margin-top:2px;}
+  .gps-stat .val{font-size:13.5px; font-weight:700; font-family:var(--f-mono); margin-top:2px;}
   .gps-banner{
     display:flex; justify-content:space-between; align-items:center; gap:10px;
-    background:var(--red-bg); border-radius:var(--radius-sm); padding:9px 10px; margin-bottom:10px;
+    background:var(--red-bg); border-radius:var(--radius-sm); padding:7px 9px; margin-bottom:0;
   }
   .gps-banner.ok{background:var(--green-bg);}
   .gps-banner .lb{font-size:9px; font-weight:700; letter-spacing:.3px; color:var(--muted);}
   .gps-banner .val{font-size:12px; font-weight:700; color:var(--red-text);}
   .gps-banner.ok .val{color:var(--green-text);}
-  .gps-map{height:150px; margin-top:10px; border-radius:var(--radius-sm); overflow:hidden; border:1px solid var(--border); border-top:1px solid rgba(23,56,92,.15); background:#e5e9ef;}
-  .gps-legend{display:flex; gap:16px; margin-top:10px; font-size:11px; color:var(--muted); font-weight:600;}
+  .gps-map{height:120px; border-radius:var(--radius-sm); overflow:hidden; border:1px solid var(--border); background:#e5e9ef;}
+  .gps-legend{display:flex; gap:16px; margin-top:8px; font-size:11px; color:var(--muted); font-weight:600;}
   .gps-legend span{display:flex; align-items:center; gap:5px;}
   .gps-legend i{width:9px; height:9px; border-radius:50%; display:inline-block;}
 
   .presensi-caption{display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:6px; font-family:var(--f-mono);}
 
-  .section-lbl{font-size:12.5px; font-weight:700; color:var(--navy); margin:0 0 6px;}
+  .section-lbl{font-size:12.5px; font-weight:700; color:var(--navy); margin:0 0 4px;}
 
-  .riwayat-row{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); font-size:12.5px;}
+  .riwayat-row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border); font-size:12.5px;}
   .riwayat-row:last-child{border-bottom:none;}
   .riwayat-row .tgl{font-weight:600;}
   .riwayat-row .jam{font-family:var(--f-mono); color:var(--muted);}
 
-  .empty-state{text-align:center; padding:24px 10px; color:var(--muted); font-size:13.5px;}
+  .empty-state{text-align:center; padding:20px 10px; color:var(--muted); font-size:13.5px;}
   .empty-state .big{font-size:24px; margin-bottom:6px;}
 
    
@@ -281,7 +284,7 @@
     <div class="ttl" id="ttl-home">Sistem Absensi Karyawan</div>
   </div>
 
-  <div class="card">
+  <div class="card card-id-clock">
     <div class="id-row">
       <div class="avatar" id="home-avatar">-</div>
       <div>
@@ -289,60 +292,65 @@
         <div class="id-role" id="home-bagian">-</div>
       </div>
     </div>
-    <div class="home-clock-block">
+    <div class="id-clock">
       <div class="clock-date" id="home-tanggal">-</div>
       <div class="clock-time" id="home-jam">--:--:--</div>
-      <div class="pill-row">
-        <span class="pill" id="pill-in">Belum Clock In</span>
-        <span class="pill" id="pill-out">Belum Clock Out</span>
-      </div>
     </div>
+  </div>
 
-    <div class="hr-sep">
-      <div class="gps-head">
-        <span class="ttl"><span class="dot" id="gps-dot"></span>Status Geolokasi Realtime</span>
-        <a href="#" id="link-kalibrasi">📍 Kalibrasi GPS</a>
-      </div>
-      <div class="gps-stats">
-        <div class="gps-stat"><div class="lb">JARAK KANTOR</div><div class="val" id="gps-jarak">- m</div></div>
-        <div class="gps-stat"><div class="lb">AKURASI GPS</div><div class="val" id="gps-akurasi">± - m</div></div>
-      </div>
-      <div class="gps-banner" id="gps-banner">
-        <div><div class="lb">STATUS KEHADIRAN</div><div class="val" id="gps-status">Mencari lokasi...</div></div>
-        <div style="text-align:right;"><div class="lb">LOKASI TERDEKAT</div><div class="val" id="gps-lokasi" style="color:var(--text);">-</div></div>
-      </div>
-      <div class="gps-banner hidden" id="gps-denied-banner" style="display:block; background:var(--red-bg); padding:10px; margin-bottom:6px;">
-        <div style="font-weight:700; color:var(--red-text); margin-bottom:4px; font-size:12px;">📍 Akses Lokasi Diblokir</div>
-        <div class="muted" style="font-size:11px; margin-bottom:6px;">Anda pernah menolak izin lokasi, sehingga browser tidak akan menampilkan permintaan izin ini lagi secara otomatis. Aktifkan izin lokasi secara manual:</div>
-        <div class="muted" style="font-size:11px; margin-bottom:8px;">1. Ketuk ikon 🔒 / ⓘ di sebelah alamat website ini di browser Anda.<br>2. Cari menu "Lokasi/Location" lalu ubah ke "Izinkan/Allow".<br>3. Tekan tombol di bawah ini.</div>
-        <button class="btn btn-navy" id="btn-retry-gps" type="button" style="margin-top:0;">🔄 Coba Lagi</button>
-      </div>
-      <div class="gps-map" id="gps-map"></div>
-      <div class="gps-legend">
-        <span><i style="background:#1a9a56"></i>Lokasi Anda</span>
-        <span><i style="background:#17385c"></i>Titik Absensi</span>
-      </div>
+  <div class="card card-pill-wrap">
+    <div class="pill-row">
+      <span class="pill" id="pill-in">Belum Clock In</span>
+      <span class="pill" id="pill-out">Belum Clock Out</span>
     </div>
+  </div>
 
-    <div class="hr-sep">
-      <div class="btn-row">
-        <div>
-          <button class="btn btn-tan" id="btn-presensi-masuk" disabled>Presensi Masuk</button>
-          <div class="presensi-caption"><span>Masuk:</span><span class="mono" id="cap-masuk">--:--</span></div>
-        </div>
-        <div>
-          <button class="btn btn-tan" id="btn-presensi-pulang" disabled>Presensi Pulang</button>
-          <div class="presensi-caption"><span>Pulang:</span><span class="mono" id="cap-pulang">--:--</span></div>
-        </div>
-      </div>
-      <button class="btn btn-outline hidden" id="btn-goto-patroli">🛡️ Lapor Patroli</button>
-      <button class="btn btn-outline hidden" id="btn-goto-kegiatan">🧹 Laporan Kegiatan</button>
+  <div class="card">
+    <div class="gps-head">
+      <span class="ttl"><span class="dot" id="gps-dot"></span>Status Geolokasi Realtime</span>
+      <a href="#" id="link-kalibrasi">📍 Kalibrasi GPS</a>
     </div>
+    <div class="gps-stats">
+      <div class="gps-stat"><div class="lb">JARAK KANTOR</div><div class="val" id="gps-jarak">- m</div></div>
+      <div class="gps-stat"><div class="lb">AKURASI GPS</div><div class="val" id="gps-akurasi">± - m</div></div>
+    </div>
+    <div class="gps-banner" id="gps-banner">
+      <div><div class="lb">STATUS KEHADIRAN</div><div class="val" id="gps-status">Mencari lokasi...</div></div>
+      <div style="text-align:right;"><div class="lb">LOKASI TERDEKAT</div><div class="val" id="gps-lokasi" style="color:var(--text);">-</div></div>
+    </div>
+    <div class="gps-banner hidden" id="gps-denied-banner" style="display:block; background:var(--red-bg); padding:10px; margin-bottom:0;">
+      <div style="font-weight:700; color:var(--red-text); margin-bottom:4px; font-size:12px;">📍 Akses Lokasi Diblokir</div>
+      <div class="muted" style="font-size:11px; margin-bottom:6px;">Anda pernah menolak izin lokasi, sehingga browser tidak akan menampilkan permintaan izin ini lagi secara otomatis. Aktifkan izin lokasi secara manual:</div>
+      <div class="muted" style="font-size:11px; margin-bottom:8px;">1. Ketuk ikon 🔒 / ⓘ di sebelah alamat website ini di browser Anda.<br>2. Cari menu "Lokasi/Location" lalu ubah ke "Izinkan/Allow".<br>3. Tekan tombol di bawah ini.</div>
+      <button class="btn btn-navy" id="btn-retry-gps" type="button" style="margin-top:0;">🔄 Coba Lagi</button>
+    </div>
+  </div>
 
-    <div class="hr-sep">
-      <div class="section-lbl">🕓 Riwayat 7 Hari Terakhir</div>
-      <div id="home-riwayat"><div class="empty-state">Memuat...</div></div>
+  <div class="card">
+    <div class="gps-map" id="gps-map"></div>
+    <div class="gps-legend">
+      <span><i style="background:#1a9a56"></i>Lokasi Anda</span>
+      <span><i style="background:#17385c"></i>Titik Absensi</span>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="btn-row">
+      <div>
+        <button class="btn btn-tan" id="btn-presensi-masuk" disabled>Presensi Masuk</button>
+        <div class="presensi-caption"><span>Masuk:</span><span class="mono" id="cap-masuk">--:--</span></div>
+      </div>
+      <div>
+        <button class="btn btn-tan" id="btn-presensi-pulang" disabled>Presensi Pulang</button>
+        <div class="presensi-caption"><span>Pulang:</span><span class="mono" id="cap-pulang">--:--</span></div>
+      </div>
+    </div>
+    <button class="btn btn-outline hidden" id="btn-goto-patroli">🛡️ Lapor Patroli</button>
+    <button class="btn btn-outline hidden" id="btn-goto-kegiatan">🧹 Laporan Kegiatan</button>
+  </div>
+
+  <div class="card">
+    <button class="btn btn-outline" id="btn-riwayat" type="button">🕓 Riwayat Absensi</button>
   </div>
 
   <p class="muted" style="text-align:center; font-size:11px; margin:5px 0 0;">PT. Ray Mitra Perkasa</p>
@@ -363,6 +371,14 @@
       <button class="btn btn-navy" id="btn-kirim-presensi">Kirim</button>
     </div>
     <button class="btn btn-ghost" id="btn-batal-presensi">Batal</button>
+  </div>
+</div>
+
+<div id="modal-riwayat" class="modal-overlay hidden">
+  <div class="modal-sheet">
+    <h3>🕓 Riwayat Absensi — 7 Hari Terakhir</h3>
+    <div id="home-riwayat"><div class="empty-state">Memuat...</div></div>
+    <button class="btn btn-outline" id="btn-tutup-riwayat">Tutup</button>
   </div>
 </div>
 
@@ -974,7 +990,6 @@ function muatHome() {
   document.getElementById('cap-masuk').textContent = st.jamMasuk || '--:--';
   document.getElementById('cap-pulang').textContent = st.jamPulang || '--:--';
   cekTombolPresensi();
-  muatRiwayatInline();
 
   setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 200);
 }
@@ -1003,6 +1018,13 @@ async function muatRiwayatInline() {
     '<span class="jam">Masuk ' + (r.jamMasuk || '-') + ' &nbsp;·&nbsp; Pulang ' + (r.jamPulang || '-') + '</span></div>'
   ).join('');
 }
+document.getElementById('btn-riwayat').addEventListener('click', () => {
+  document.getElementById('modal-riwayat').classList.remove('hidden');
+  muatRiwayatInline();
+});
+document.getElementById('btn-tutup-riwayat').addEventListener('click', () => {
+  document.getElementById('modal-riwayat').classList.add('hidden');
+});
 
 let presensiJenis = null, presensiFotoB64 = null;
 function bukaModalPresensi(jenis) {
