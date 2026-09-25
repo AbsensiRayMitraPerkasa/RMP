@@ -305,6 +305,12 @@
         <div><div class="lb">STATUS KEHADIRAN</div><div class="val" id="gps-status">Mencari lokasi...</div></div>
         <div style="text-align:right;"><div class="lb">LOKASI TERDEKAT</div><div class="val" id="gps-lokasi" style="color:var(--text);">-</div></div>
       </div>
+      <div class="gps-banner hidden" id="gps-denied-banner" style="display:block; background:var(--red-bg); padding:10px; margin-bottom:6px;">
+        <div style="font-weight:700; color:var(--red-text); margin-bottom:4px; font-size:12px;">📍 Akses Lokasi Diblokir</div>
+        <div class="muted" style="font-size:11px; margin-bottom:6px;">Anda pernah menolak izin lokasi, sehingga browser tidak akan menampilkan permintaan izin ini lagi secara otomatis. Aktifkan izin lokasi secara manual:</div>
+        <div class="muted" style="font-size:11px; margin-bottom:8px;">1. Ketuk ikon 🔒 / ⓘ di sebelah alamat website ini di browser Anda.<br>2. Cari menu "Lokasi/Location" lalu ubah ke "Izinkan/Allow".<br>3. Tekan tombol di bawah ini.</div>
+        <button class="btn btn-navy" id="btn-retry-gps" type="button" style="margin-top:0;">🔄 Coba Lagi</button>
+      </div>
       <div class="gps-map" id="gps-map"></div>
       <div class="gps-legend">
         <span><i style="background:#1a9a56"></i>Lokasi Anda</span>
@@ -713,20 +719,57 @@ function cariLokasiTerdekat(lat, lng) {
   });
   return { lokasi: terdekat, jarak: jarakMin };
 }
+function initMapFallback() {
+  if (leafletMap || !window.L || !daftarLokasiKerja.length) return;
+  const lok = daftarLokasiKerja[0];
+  leafletMap = L.map('gps-map', {
+    zoomControl: false, attributionControl: false, dragging: false,
+    scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, touchZoom: false, keyboard: false
+  }).setView([lok.lat, lok.lng], 16);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(leafletMap);
+  leafletKantorMarker = L.circleMarker([lok.lat, lok.lng], { radius: 8, color: '#17385c', weight: 2, fillColor: '#17385c', fillOpacity: .9 })
+    .addTo(leafletMap).bindPopup('Titik Absensi: ' + lok.nama);
+  leafletKantorCircle = L.circle([lok.lat, lok.lng], { radius: lok.radius, color: '#17385c', weight: 1, dashArray: '4,4', fillColor: '#17385c', fillOpacity: .08 })
+    .addTo(leafletMap);
+  setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 200);
+}
+function tampilkanGpsDiblokir(pesan) {
+  document.getElementById('gps-status').textContent = 'Akses lokasi diblokir';
+  document.getElementById('gps-denied-banner').classList.remove('hidden');
+  kirimLogKeSistem('ERROR_GPS', pesan);
+}
 function mulaiPantauLokasi() {
+  initMapFallback();
   if (!navigator.geolocation) return;
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+
+  if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({ name: 'geolocation' }).then(status => {
+      if (status.state === 'denied') tampilkanGpsDiblokir('Izin lokasi berstatus denied (permissions API).');
+    }).catch(() => {});
+  }
+
   watchId = navigator.geolocation.watchPosition(
     pos => { updatePosisi(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy)); },
-    err => { 
-      document.getElementById('gps-status').textContent = 'GPS tidak aktif: ' + err.message; 
-      kirimLogKeSistem('ERROR_GPS', err.message);
+    err => {
+      if (err.code === err.PERMISSION_DENIED) {
+        tampilkanGpsDiblokir(err.message);
+      } else {
+        document.getElementById('gps-status').textContent = 'GPS tidak aktif: ' + err.message;
+        kirimLogKeSistem('ERROR_GPS', err.message);
+      }
     },
     { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
   );
 }
+document.getElementById('btn-retry-gps').addEventListener('click', () => {
+  document.getElementById('gps-denied-banner').classList.add('hidden');
+  document.getElementById('gps-status').textContent = 'Mencari lokasi...';
+  mulaiPantauLokasi();
+});
 function updatePosisi(lat, lng, akurasi) {
   posisiTerkini = { lat, lng, akurasi };
+  document.getElementById('gps-denied-banner').classList.add('hidden');
   document.getElementById('gps-dot').style.background = 'var(--green)';
   document.getElementById('gps-akurasi').textContent = '± ' + akurasi + ' m';
 
@@ -751,6 +794,8 @@ function updatePosisi(lat, lng, akurasi) {
         scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, touchZoom: false, keyboard: false
       }).setView([lat, lng], 16);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(leafletMap);
+    }
+    if (!leafletMarker) {
       leafletMarker = L.circleMarker([lat, lng], { radius: 8, color: '#1a9a56', weight: 2, fillColor: '#1a9a56', fillOpacity: .9 })
         .addTo(leafletMap).bindPopup('Lokasi Anda');
     } else {
@@ -780,7 +825,14 @@ document.getElementById('link-kalibrasi').addEventListener('click', (e) => {
   document.getElementById('gps-status').textContent = 'Mengkalibrasi ulang...';
   navigator.geolocation.getCurrentPosition(
     pos => updatePosisi(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy)),
-    err => { showToast('Gagal kalibrasi: ' + err.message, false); kirimLogKeSistem('ERROR_GPS_KALIBRASI', err.message); },
+    err => {
+      if (err.code === err.PERMISSION_DENIED) {
+        tampilkanGpsDiblokir(err.message);
+      } else {
+        showToast('Gagal kalibrasi: ' + err.message, false);
+        kirimLogKeSistem('ERROR_GPS_KALIBRASI', err.message);
+      }
+    },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
   );
 });
