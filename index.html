@@ -67,13 +67,12 @@
   .card{
     background:rgba(255,255,255,.96); backdrop-filter:blur(1px); -webkit-backdrop-filter:blur(1px);
     border:1px solid rgba(23,56,92,.35); border-radius:var(--radius);
-    padding:14px 14px; margin:10px 0; box-shadow:var(--shadow); position:relative; z-index:1;
+    padding:12px 14px; margin:6px 0; box-shadow:var(--shadow); position:relative; z-index:1;
   }
   .card-id-clock{display:flex; align-items:center; justify-content:space-between; gap:10px;}
   .id-clock{text-align:right; flex-shrink:0;}
   .id-clock .clock-date{text-align:right; margin:0;}
   .id-clock .clock-time{text-align:right; margin:2px 0 0;}
-  .card-pill-wrap{display:inline-flex;}
 
    
   .login-card{max-width:420px; margin:0 auto; width:100%;}
@@ -124,11 +123,11 @@
   .pill.done{background:var(--green-bg); color:var(--green-text);}
 
 
-  .gps-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .gps-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
   .gps-head .ttl{font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:6px;}
   .gps-head .ttl .dot{width:7px; height:7px; border-radius:50%; background:var(--green); display:inline-block;}
   .gps-head a{font-size:11.5px; font-weight:600;}
-  .gps-stats{display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:8px;}
+  .gps-stats{display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;}
   .gps-stat{background:var(--navy-soft); border-radius:var(--radius-sm); padding:7px 9px;}
   .gps-stat .lb{font-size:9.5px; color:var(--muted); font-weight:700; letter-spacing:.3px;}
   .gps-stat .val{font-size:13.5px; font-weight:700; font-family:var(--f-mono); margin-top:2px;}
@@ -141,7 +140,7 @@
   .gps-banner .val{font-size:12px; font-weight:700; color:var(--red-text);}
   .gps-banner.ok .val{color:var(--green-text);}
   .gps-map{height:120px; border-radius:var(--radius-sm); overflow:hidden; border:1px solid var(--border); background:#e5e9ef;}
-  .gps-legend{display:flex; gap:16px; margin-top:8px; font-size:11px; color:var(--muted); font-weight:600;}
+  .gps-legend{display:flex; gap:16px; margin-top:6px; font-size:11px; color:var(--muted); font-weight:600;}
   .gps-legend span{display:flex; align-items:center; gap:5px;}
   .gps-legend i{width:9px; height:9px; border-radius:50%; display:inline-block;}
 
@@ -298,7 +297,7 @@
     </div>
   </div>
 
-  <div class="card card-pill-wrap">
+  <div class="card">
     <div class="pill-row">
       <span class="pill" id="pill-in">Belum Clock In</span>
       <span class="pill" id="pill-out">Belum Clock Out</span>
