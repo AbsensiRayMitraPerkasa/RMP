@@ -4,35 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Absensi RAY — Admin</title>
-<link rel="manifest" id="pwa-manifest" href="manifest-admin.json">
-<script>
-(function(){
-  try{
-    var qs = location.search;
-    var manifest = {
-      id: '/admin.html' + qs,
-      name: 'Absensi RAY — Admin',
-      short_name: 'RAY Admin',
-      description: 'Aplikasi admin klien untuk absensi RAY',
-      start_url: './admin.html' + qs,
-      scope: './',
-      display: 'standalone',
-      orientation: 'portrait',
-      background_color: '#eef1f6',
-      theme_color: '#17385c',
-      lang: 'id',
-      icons: [
-        { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-        { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-        { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
-      ]
-    };
-    var blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
-    document.getElementById('pwa-manifest').setAttribute('href', URL.createObjectURL(blob));
-  }catch(e){}
-})();
-</script>
+<link rel="manifest" href="manifest-admin.json">
 <meta name="theme-color" content="#17385c">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -474,6 +446,18 @@ const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
 // untuk masuk sebagai Admin Ray walau passwordnya bocor.
 const AKSES_PARAM = new URLSearchParams(location.search).get('akses') || '';
 const SESSION_KEY = 'ray_admin_session_' + KODE_KLIEN + (AKSES_PARAM ? '_' + AKSES_PARAM : '');
+
+// Ikon PWA yang sudah diinstal membuka halaman tanpa query string (?klien=...&akses=...).
+// Simpan link lengkap saat dibuka normal, lalu redirect otomatis ke link itu
+// kalau suatu saat dibuka tanpa parameter (mis. dari ikon di layar utama).
+if (KODE_KLIEN) {
+  try { localStorage.setItem('ray_pwa_admin_start_qs', location.search); } catch(e){}
+} else {
+  try {
+    const savedQs = localStorage.getItem('ray_pwa_admin_start_qs');
+    if (savedQs) location.replace('admin.html' + savedQs);
+  } catch(e){}
+}
 
 let adminPassword = '';
 let peran = '';

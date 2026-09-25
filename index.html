@@ -4,35 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sistem Absensi Karyawan — RAY</title>
-<link rel="manifest" id="pwa-manifest" href="manifest.json">
-<script>
-(function(){
-  try{
-    var qs = location.search;
-    var manifest = {
-      id: '/index.html' + qs,
-      name: 'Absensi RAY — Karyawan',
-      short_name: 'Absensi RAY',
-      description: 'Aplikasi absensi karyawan RAY',
-      start_url: './index.html' + qs,
-      scope: './',
-      display: 'standalone',
-      orientation: 'portrait',
-      background_color: '#eef1f6',
-      theme_color: '#17385c',
-      lang: 'id',
-      icons: [
-        { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-        { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-        { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
-      ]
-    };
-    var blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
-    document.getElementById('pwa-manifest').setAttribute('href', URL.createObjectURL(blob));
-  }catch(e){}
-})();
-</script>
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#17385c">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -514,6 +486,18 @@
 const API_URL = 'https://rxmjsvzkciwgpdatgqkd.supabase.co/functions/v1/api';
 const LOGO_URL = 'icon-192.png'; 
 const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
+
+// Ikon PWA yang sudah diinstal membuka halaman tanpa query string (?klien=...).
+// Simpan link lengkap saat dibuka normal, lalu redirect otomatis ke link itu
+// kalau suatu saat dibuka tanpa parameter (mis. dari ikon di layar utama).
+if (KODE_KLIEN) {
+  try { localStorage.setItem('ray_pwa_start_qs', location.search); } catch(e){}
+} else {
+  try {
+    const savedQs = localStorage.getItem('ray_pwa_start_qs');
+    if (savedQs) location.replace('index.html' + savedQs);
+  } catch(e){}
+}
 
 let sesi = { nama: '', pin: '', bagianKerja: '' };
 let klienValid = false;
