@@ -20,7 +20,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" defer></script>
 <style>
   :root{
-    --bg:#eef1f6; --card:#ffffff; --border:#e3e7ee;
+    --bg:#dbeefd; --card:#ffffff; --border:#e3e7ee;
     --navy:#17385c; --navy-dark:#0f2740; --navy-soft:#eaf0f6;
     --tan:#e4d9c4; --tan-text:#8a7a5c;
     --text:#1f2937; --muted:#7c8798;
@@ -33,6 +33,11 @@
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{background:var(--bg); color:var(--text); font-family:var(--f-body); min-height:100vh; min-height:100dvh; -webkit-tap-highlight-color:transparent; padding-bottom:66px;}
+  body::before{
+    content:''; position:fixed; inset:0;
+    background-image:url('logo-watermark.png'); background-repeat:no-repeat; background-position:center;
+    background-size:min(60vw,260px); opacity:.4; pointer-events:none; z-index:-1;
+  }
   h1,h2,h3{margin:0; font-weight:700;}
   .mono{font-family:var(--f-mono);}
   .muted{color:var(--muted);}
@@ -60,7 +65,8 @@
   .top-banner .ttl{font-size:11.5px; font-weight:600; opacity:.95;}
 
   .card{
-    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    background:rgba(255,255,255,.82); backdrop-filter:blur(1px); -webkit-backdrop-filter:blur(1px);
+    border:1px solid var(--border); border-radius:var(--radius);
     padding:12px 14px; margin:8px 0; box-shadow:var(--shadow); position:relative; z-index:1;
   }
   .hr-sep{border-top:1px solid var(--border); margin-top:8px; padding-top:8px;}
