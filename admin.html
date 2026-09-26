@@ -146,7 +146,11 @@
   .chat-log{display:flex; flex-direction:column; gap:12px; margin-bottom:14px; max-height:60vh; overflow-y:auto; padding-right:4px;}
   .chat-msg{max-width:80%; padding:10px 13px; border-radius:var(--radius-sm); font-size:14px; line-height:1.5; white-space:pre-wrap;}
   .chat-msg.user{align-self:flex-end; background:var(--navy); color:#fff;}
-  .chat-msg.ai{align-self:flex-start; background:var(--navy-soft); border:1px solid var(--border);}
+  .chat-msg.ai{align-self:flex-start; background:var(--navy-soft); border:1px solid var(--border); max-width:92%;}
+  .chat-msg.ai .chat-table-wrap{overflow-x:auto; margin:6px 0; white-space:normal;}
+  .chat-table{border-collapse:collapse; width:100%; font-size:13px;}
+  .chat-table th, .chat-table td{border:1px solid var(--border); padding:5px 8px; text-align:left; white-space:nowrap;}
+  .chat-table th{background:rgba(0,0,0,.04); font-weight:600;}
   .chat-input-row{display:flex; gap:8px;}
   .chat-input-row textarea{
     flex:1; background:#fbfcfe; border:1px solid var(--border); color:var(--text); border-radius:var(--radius-sm);
@@ -1092,11 +1096,55 @@ document.getElementById('btn-generate-qrweb').addEventListener('click', () => {
   btnDl.onclick = () => unduhQrDariBox(box, 'QR_Akses_Web_Karyawan');
 });
 
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function barisKeSel(baris) {
+  let s = baris.trim();
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|')) s = s.slice(0, -1);
+  return s.split('|').map((c) => c.trim());
+}
+
+function aiTeksKeHtml(teks) {
+  const baris = teks.replace(/\r\n/g, '\n').split('\n');
+  let html = '';
+  let i = 0;
+  while (i < baris.length) {
+    const l = baris[i];
+    const lPemisah = baris[i + 1];
+    const adaTabel = l.includes('|') && lPemisah && /^[\s|:-]+$/.test(lPemisah) && lPemisah.includes('-');
+    if (adaTabel) {
+      const header = barisKeSel(l);
+      i += 2;
+      const rows = [];
+      while (i < baris.length && baris[i].includes('|')) {
+        rows.push(barisKeSel(baris[i]));
+        i++;
+      }
+      html += '<div class="chat-table-wrap"><table class="chat-table"><thead><tr>' +
+        header.map((c) => '<th>' + escapeHtml(c) + '</th>').join('') +
+        '</tr></thead><tbody>' +
+        rows.map((r) => '<tr>' + r.map((c) => '<td>' + escapeHtml(c) + '</td>').join('') + '</tr>').join('') +
+        '</tbody></table></div>';
+    } else {
+      html += escapeHtml(l) + (i < baris.length - 1 ? '<br>' : '');
+      i++;
+    }
+  }
+  return html;
+}
+
 function pushChat(role, text) {
   const log = document.getElementById('chat-log');
   const div = document.createElement('div');
   div.className = 'chat-msg ' + role;
-  div.textContent = text;
+  if (role === 'ai') {
+    div.innerHTML = aiTeksKeHtml(text);
+  } else {
+    div.textContent = text;
+  }
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
 }
