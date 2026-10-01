@@ -16,6 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains&#43;Mono:wght@500;600&amp;display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
     --bg:#eef1f6; --card:#ffffff; --border:#e3e7ee;
@@ -966,6 +967,7 @@ function renderTabelKelola(key, box, cfg) {
   const html =
     '<div class="panel">' +
       '<div class="section-title">Daftar ' + cfg.title + '</div>' +
+      (cfg.qr ? '<button class="btn btn-outline" id="btn-download-semua-qr-' + key + '" style="width:auto; margin-bottom:12px;" onclick="downloadSemuaQr(\'' + key + '\')">⬇️ Download Semua QR (ZIP)</button>' : '') +
       '<div class="table-scroll"><table><thead><tr>' +
         cfg.fields.map(f => '<th>' + f.label + '</th>').join('') + '<th></th>' +
       '</tr></thead><tbody>' +
@@ -1153,6 +1155,47 @@ function unduhTemplateQr(kode, judul, label, namaFile) {
     a.download = namaFile + '.png';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   }).catch((e) => showToast('Gagal membuat template QR: ' + e.message, false));
+}
+
+function canvasKeBlob(canvas) {
+  return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/png'));
+}
+
+async function downloadSemuaQr(key) {
+  const cfg = ENTITAS_KELOLA[key];
+  const daftar = (kelolaCache[key] || []).filter((d) => d[cfg.qrField]);
+  if (daftar.length === 0) return showToast('Belum ada ' + cfg.title.toLowerCase() + ' dengan Kode QR untuk didownload.', false);
+
+  const btn = document.getElementById('btn-download-semua-qr-' + key);
+  const labelAsli = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = 'Menyiapkan ZIP... ⏳';
+
+  try {
+    const zip = new JSZip();
+    const namaTerpakai = {};
+    for (const d of daftar) {
+      const judul = String(d[cfg.qrJudulField] || 'QR');
+      const canvas = await buatCanvasTemplateQr(String(d[cfg.qrField]), judul, cfg.qrBadge || 'QR');
+      const blob = await canvasKeBlob(canvas);
+      let namaFile = judul.replace(/[^a-zA-Z0-9]+/g, '_');
+      let urutan = 1;
+      while (namaTerpakai[namaFile]) namaFile = judul.replace(/[^a-zA-Z0-9]+/g, '_') + '_' + (++urutan);
+      namaTerpakai[namaFile] = true;
+      zip.file('QR_' + namaFile + '.png', blob);
+    }
+    const contentBlob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(contentBlob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'QR_' + cfg.title.replace(/[^a-zA-Z0-9]+/g, '_') + '_Semua.zip';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    showToast('Gagal membuat ZIP: ' + e.message, false);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = labelAsli;
+  }
 }
 
 function initQrWeb() {
