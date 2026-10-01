@@ -837,7 +837,7 @@ const ENTITAS_KELOLA = {
     title: 'Titik Patroli',
     listAction: 'getDaftarTitikPatroliAdmin', addAction: 'tambahTitikPatroliAdmin',
     editAction: 'editTitikPatroliAdmin', delAction: 'hapusTitikPatroliAdmin',
-    qr: true, qrField: 'kodeQr', qrJudulField: 'namaPos',
+    qr: true, qrField: 'kodeQr', qrJudulField: 'namaPos', qrBadge: 'PATROLI',
     fields: [
       { key: 'namaPos', label: 'Nama Titik/Pos', type: 'text' },
       { key: 'lat', label: 'Latitude', type: 'text' },
@@ -851,7 +851,7 @@ const ENTITAS_KELOLA = {
     title: 'Tugas Kebersihan',
     listAction: 'getDaftarTugasAdmin', addAction: 'tambahTugasAdmin',
     editAction: 'editTugasAdmin', delAction: 'hapusTugasAdmin',
-    qr: true, qrField: 'kodeQr', qrJudulField: 'namaTugas',
+    qr: true, qrField: 'kodeQr', qrJudulField: 'namaTugas', qrBadge: 'TUGAS',
     fields: [
       { key: 'namaTugas', label: 'Nama Tugas', type: 'text' },
       { key: 'area', label: 'Area/Lokasi', type: 'text' },
@@ -979,7 +979,7 @@ function renderTabelKelola(key, box, cfg) {
               }).join('') +
               '<td class="action-cell">' +
                 '<button class="btn btn-outline btn-sm" onclick="isiFormEdit(\'' + key + '\', \'' + d.id + '\')">Edit</button>' +
-                (cfg.qr ? '<button class="btn btn-outline btn-sm" onclick="tampilkanQr(\'' + String(d[cfg.qrField] || '').replace(/'/g,"\\'") + '\', \'' + String(d[cfg.qrJudulField] || '').replace(/'/g,"\\'") + '\')">QR</button>' : '') +
+                (cfg.qr ? '<button class="btn btn-outline btn-sm" onclick="tampilkanQr(\'' + String(d[cfg.qrField] || '').replace(/'/g,"\\'") + '\', \'' + String(d[cfg.qrJudulField] || '').replace(/'/g,"\\'") + '\', \'' + (cfg.qrBadge || '') + '\')">QR</button>' : '') +
                 '<button class="btn btn-danger btn-sm" onclick="hapusKelola(\'' + key + '\', \'' + d.id + '\')">Hapus</button>' +
               '</td></tr>'
             ).join('')
@@ -1058,24 +1058,101 @@ async function hapusKelola(key, id) {
   if (res.sukses) muatKelola(key);
 }
 
-function tampilkanQr(kode, judul) {
+function tampilkanQr(kode, judul, label) {
   if (!kode) return showToast('Titik ini belum punya Kode Titik. Isi dulu "Kode Titik" di form, baru QR bisa dibuat.', false);
+  label = label || 'PATROLI';
   document.getElementById('qr-modal-title').textContent = 'QR: ' + judul;
   const box = document.getElementById('qr-canvas-box');
   box.innerHTML = '';
   new QRCode(box, { text: kode, width: 220, height: 220 });
-  document.getElementById('btn-download-qr').onclick = () => unduhQrDariBox(box, 'QR_' + judul.replace(/[^a-z0-9]+/gi, '_'));
+  document.getElementById('btn-download-qr').onclick = () => unduhTemplateQr(kode, judul, label, 'QR_' + judul.replace(/[^a-z0-9]+/gi, '_'));
   document.getElementById('qr-modal').classList.remove('hidden');
 }
 function tutupQrModal() { document.getElementById('qr-modal').classList.add('hidden'); }
-function unduhQrDariBox(box, namaFile) {
-  const canvas = box.querySelector('canvas');
-  const img = box.querySelector('img');
-  const dataUrl = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
-  if (!dataUrl) return showToast('QR belum siap, coba lagi.', false);
-  const a = document.createElement('a');
-  a.href = dataUrl; a.download = namaFile + '.png';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+
+// ---------- TEMPLATE QR SIAP TEMPEL (LOGO + NAMA PERUSAHAAN) ----------
+const LABEL_INSTRUKSI = { ABSENSI: 'Scan kode QR ini untuk Absensi', PATROLI: 'Scan kode QR ini untuk Absen Patroli', TUGAS: 'Scan kode QR ini untuk Absen Tugas' };
+
+function bungkusTeks(ctx, teks, x, y, lebarMax, tinggiBaris) {
+  const kata = teks.split(' ');
+  const baris = [];
+  let baris1 = '';
+  for (let i = 0; i < kata.length; i++) {
+    const uji = baris1 + kata[i] + ' ';
+    if (ctx.measureText(uji).width > lebarMax && i > 0) { baris.push(baris1.trim()); baris1 = kata[i] + ' '; }
+    else { baris1 = uji; }
+  }
+  baris.push(baris1.trim());
+  const yAwal = y - ((baris.length - 1) * tinggiBaris) / 2;
+  baris.forEach((b, i) => ctx.fillText(b, x, yAwal + i * tinggiBaris));
+}
+
+function buatCanvasTemplateQr(kode, judul, label) {
+  return new Promise((resolve, reject) => {
+    const logo = new Image();
+    logo.onload = () => {
+      try {
+        const tempBox = document.createElement('div');
+        tempBox.style.cssText = 'position:absolute; left:-9999px; top:-9999px;';
+        document.body.appendChild(tempBox);
+        new QRCode(tempBox, { text: kode, width: 320, height: 320 });
+        const qrSumber = tempBox.querySelector('canvas') || tempBox.querySelector('img');
+
+        const W = 560, H = 740;
+        const canvas = document.createElement('canvas');
+        canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+        ctx.strokeStyle = '#cdd6e3';
+        ctx.setLineDash([9, 7]);
+        ctx.lineWidth = 3;
+        ctx.strokeRect(12, 12, W - 24, H - 24);
+        ctx.setLineDash([]);
+
+        const logoSize = 68;
+        ctx.drawImage(logo, (W - logoSize) / 2, 40, logoSize, logoSize);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#17385c';
+        ctx.font = '800 21px Arial';
+        ctx.fillText('PT. RAY MITRA PERKASA', W / 2, 134);
+
+        const badgeW = 170, badgeH = 36;
+        ctx.fillStyle = '#17385c';
+        ctx.fillRect((W - badgeW) / 2, 154, badgeW, badgeH);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '700 15px Arial';
+        ctx.fillText(label, W / 2, 177);
+
+        const qrSize = 360;
+        ctx.drawImage(qrSumber, (W - qrSize) / 2, 214, qrSize, qrSize);
+
+        ctx.fillStyle = '#1f2937';
+        ctx.font = '700 26px Arial';
+        bungkusTeks(ctx, judul, W / 2, 626, W - 80, 32);
+
+        ctx.fillStyle = '#7c8798';
+        ctx.font = '500 15px Arial';
+        ctx.fillText(LABEL_INSTRUKSI[label] || ('Scan kode QR ini untuk ' + label), W / 2, 690);
+
+        document.body.removeChild(tempBox);
+        resolve(canvas);
+      } catch (e) { reject(e); }
+    };
+    logo.onerror = () => reject(new Error('Logo perusahaan gagal dimuat'));
+    logo.src = 'logo-watermark.png';
+  });
+}
+
+function unduhTemplateQr(kode, judul, label, namaFile) {
+  buatCanvasTemplateQr(kode, judul, label).then((canvas) => {
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = namaFile + '.png';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }).catch((e) => showToast('Gagal membuat template QR: ' + e.message, false));
 }
 
 function initQrWeb() {
@@ -1093,7 +1170,7 @@ document.getElementById('btn-generate-qrweb').addEventListener('click', () => {
   new QRCode(box, { text: link, width: 240, height: 240 });
   const btnDl = document.getElementById('btn-download-qrweb');
   btnDl.classList.remove('hidden');
-  btnDl.onclick = () => unduhQrDariBox(box, 'QR_Akses_Web_Karyawan');
+  btnDl.onclick = () => unduhTemplateQr(link, 'Akses Web Karyawan', 'ABSENSI', 'QR_Akses_Web_Karyawan');
 });
 
 function escapeHtml(s) {
