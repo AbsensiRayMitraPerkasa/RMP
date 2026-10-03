@@ -5,6 +5,41 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sistem Absensi Karyawan — RAY</title>
 <link rel="manifest" href="manifest.json">
+<script>
+// iOS membaca start_url dari manifest.json (bukan URL yang sedang dibuka) saat
+// "Tambahkan ke Layar Utama" ditekan. Manifest statis tidak punya ?klien=...,
+// jadi begitu dibuka dari ikon, link kebaca tidak lengkap -> muncul "link tidak valid".
+// Di sini manifest dibuat ulang sebagai Blob yang menyisipkan query string saat ini
+// ke dalam start_url, supaya ikon yang terpasang tetap membawa ?klien=... miliknya.
+(function () {
+  try {
+    var qs = location.search;
+    if (!qs) return;
+    var manifest = {
+      id: './index.html' + qs,
+      name: 'Absensi RAY — Karyawan',
+      short_name: 'Absensi RAY',
+      description: 'Aplikasi absensi karyawan RAY',
+      start_url: './index.html' + qs,
+      scope: './',
+      display: 'standalone',
+      orientation: 'portrait',
+      background_color: '#eef1f6',
+      theme_color: '#17385c',
+      lang: 'id',
+      icons: [
+        { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+        { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+      ]
+    };
+    var blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+    var link = document.querySelector('link[rel="manifest"]');
+    if (link) link.setAttribute('href', URL.createObjectURL(blob));
+  } catch (e) {}
+})();
+</script>
 <meta name="theme-color" content="#17385c">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
