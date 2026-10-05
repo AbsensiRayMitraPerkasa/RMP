@@ -491,12 +491,32 @@ const SESSION_KEY = 'ray_admin_session_' + KODE_KLIEN + (AKSES_PARAM ? '_' + AKS
 // Ikon PWA yang sudah diinstal membuka halaman tanpa query string (?klien=...&akses=...).
 // Simpan link lengkap saat dibuka normal, lalu redirect otomatis ke link itu
 // kalau suatu saat dibuka tanpa parameter (mis. dari ikon di layar utama).
+// Cookie dipakai sebagai penyimpanan utama (localStorage tidak selalu ikut
+// terbawa dari tab Safari biasa ke web app Home Screen di iOS).
+function raySetCookie(nama, nilai, hari) {
+  try {
+    const d = new Date();
+    d.setTime(d.getTime() + hari * 24 * 60 * 60 * 1000);
+    document.cookie = nama + '=' + encodeURIComponent(nilai) + '; expires=' + d.toUTCString() + '; path=/';
+  } catch (e) {}
+}
+function rayGetCookie(nama) {
+  try {
+    const m = document.cookie.match('(?:^|; )' + nama + '=([^;]*)');
+    return m ? decodeURIComponent(m[1]) : '';
+  } catch (e) { return ''; }
+}
+let SEDANG_REDIRECT_PWA = false;
 if (KODE_KLIEN) {
+  raySetCookie('ray_pwa_admin_start_qs', location.search, 730);
   try { localStorage.setItem('ray_pwa_admin_start_qs', location.search); } catch(e){}
 } else {
   try {
-    const savedQs = localStorage.getItem('ray_pwa_admin_start_qs');
-    if (savedQs) location.replace('admin.html' + savedQs);
+    const savedQs = rayGetCookie('ray_pwa_admin_start_qs') || localStorage.getItem('ray_pwa_admin_start_qs') || '';
+    if (savedQs) {
+      SEDANG_REDIRECT_PWA = true;
+      location.replace('admin.html' + savedQs);
+    }
   } catch(e){}
 }
 
@@ -547,6 +567,7 @@ function tampilkanLinkTidakValid(pesan) {
   document.getElementById('screen-klien-invalid').classList.remove('hidden');
 }
 async function muatInfoSistem() {
+  if (SEDANG_REDIRECT_PWA) return; // sedang redirect ke link lengkap, biarkan halaman berpindah dulu
   if (!KODE_KLIEN) {
     tampilkanLinkTidakValid('Link admin tidak lengkap. Pastikan URL mengandung ?klien=... di akhir (link diberikan oleh Super Admin).');
     return;
