@@ -11,27 +11,33 @@
 // jadi begitu dibuka dari ikon, link kebaca tidak lengkap -> muncul "link tidak valid".
 // Di sini manifest dibuat ulang sebagai Blob yang menyisipkan query string saat ini
 // ke dalam start_url, supaya ikon yang terpasang tetap membawa ?klien=... miliknya.
+// PENTING: semua URL di dalam manifest ini harus ABSOLUT (pakai location.origin),
+// bukan relatif ("./index.html"). Blob URL tidak bisa dipakai sebagai dasar untuk
+// resolve URL relatif, jadi kalau ditulis relatif, Safari gagal membaca start_url
+// (dan ikon) dengan benar -> ikon di Home Screen iPhone tetap kebuka tanpa
+// ?klien=... -> muncul layar "link tidak valid".
 (function () {
   try {
     var qs = location.search;
     if (!qs) return;
+    var base = location.origin + location.pathname.replace(/[^/]*$/, '');
     var manifest = {
-      id: './index.html' + qs,
+      id: base + 'index.html' + qs,
       name: 'Absensi RAY — Karyawan',
       short_name: 'Absensi RAY',
       description: 'Aplikasi absensi karyawan RAY',
-      start_url: './index.html' + qs,
-      scope: './',
+      start_url: base + 'index.html' + qs,
+      scope: base,
       display: 'standalone',
       orientation: 'portrait',
       background_color: '#eef1f6',
       theme_color: '#17385c',
       lang: 'id',
       icons: [
-        { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-        { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-        { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+        { src: base + 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: base + 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: base + 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+        { src: base + 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
       ]
     };
     var blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
@@ -343,6 +349,7 @@
   <div class="card login-card">
     <label>Pilih Nama Anda</label>
     <select id="login-nama"><option value="">-- Pilih Nama --</option></select>
+    <a href="#" id="retry-nama" class="hidden" style="font-size:12px;color:var(--red);margin-top:4px;text-decoration:underline;">Daftar nama gagal dimuat. Ketuk di sini untuk muat ulang.</a>
 
     <label>PIN (4 digit)</label>
     <input type="password" id="login-pin" class="pin-plain" maxlength="4" inputmode="numeric" placeholder="••••">
@@ -657,12 +664,19 @@ const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
 // Ikon PWA yang sudah diinstal membuka halaman tanpa query string (?klien=...).
 // Simpan link lengkap saat dibuka normal, lalu redirect otomatis ke link itu
 // kalau suatu saat dibuka tanpa parameter (mis. dari ikon di layar utama).
+let SEDANG_REDIRECT_PWA = false;
 if (KODE_KLIEN) {
   try { localStorage.setItem('ray_pwa_start_qs', location.search); } catch(e){}
 } else {
   try {
     const savedQs = localStorage.getItem('ray_pwa_start_qs');
-    if (savedQs) location.replace('index.html' + savedQs);
+    if (savedQs) {
+      // location.replace() tidak langsung menghentikan script di bawah ini,
+      // jadi tandai sedang redirect supaya muatInfoSistem() tidak sempat
+      // menampilkan layar "link tidak valid" sesaat sebelum halaman berpindah.
+      SEDANG_REDIRECT_PWA = true;
+      location.replace('index.html' + savedQs);
+    }
   } catch(e){}
 }
 
@@ -723,6 +737,7 @@ function tampilkanLinkTidakValid(pesan) {
   document.getElementById('screen-klien-invalid').classList.remove('hidden');
 }
 async function muatInfoSistem() {
+  if (SEDANG_REDIRECT_PWA) return; // sedang redirect ke link lengkap, biarkan halaman berpindah dulu
   if (!KODE_KLIEN) {
     tampilkanLinkTidakValid('Link absensi tidak lengkap. Pastikan Anda membuka link yang diberikan admin (harus mengandung ?klien=... di akhir URL).');
     return;
@@ -1003,11 +1018,25 @@ document.getElementById('link-kalibrasi').addEventListener('click', (e) => {
   );
 });
 
-async function muatDaftarNama() {
+async function muatDaftarNama(percobaan) {
+  percobaan = percobaan || 1;
   const res = await api('daftarKaryawan', {});
   const sel = document.getElementById('login-nama');
+  const retryBtn = document.getElementById('retry-nama');
   sel.innerHTML = '<option value="">-- Pilih Nama --</option>';
-  if (res.sukses !== false && res.daftar) {
+  if (retryBtn) retryBtn.classList.add('hidden');
+
+  if (res.sukses === false) {
+    // Beberapa HP Android dengan koneksi lambat/putus-putus gagal memuat daftar nama
+    // sehingga dropdown tampak kosong tanpa penjelasan. Coba ulang otomatis dulu,
+    // baru tampilkan tombol muat ulang kalau tetap gagal setelah beberapa kali.
+    if (percobaan < 3) {
+      await new Promise((r) => setTimeout(r, 1200));
+      return muatDaftarNama(percobaan + 1);
+    }
+    showToast(res.pesan || 'Gagal memuat daftar nama. Cek koneksi internet Anda.', false);
+    if (retryBtn) retryBtn.classList.remove('hidden');
+  } else if (res.daftar) {
     res.daftar.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
   }
 
@@ -1022,6 +1051,10 @@ async function muatDaftarNama() {
     sel.parentNode.insertBefore(lbl, sel.nextSibling);
   }
 }
+document.getElementById('retry-nama').addEventListener('click', (e) => {
+  e.preventDefault();
+  muatDaftarNama();
+});
 document.getElementById('btn-login').addEventListener('click', async () => {
   const sel = document.getElementById('login-nama');
   const nama = localStorage.getItem('ray_bind_nama_' + KODE_KLIEN) || sel.value;
