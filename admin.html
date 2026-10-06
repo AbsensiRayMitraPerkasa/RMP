@@ -227,11 +227,25 @@
 <section id="screen-login" class="center-screen">
   <div class="login-card">
     <div class="brand">PT. RAY MITRA PERKASA</div>
-    <h1>Panel Admin</h1>
+    <h1 id="login-judul">Panel Admin</h1>
     <div class="muted" id="subtitle-klien" style="text-align:center; margin:-2px 0 14px; font-size:13px;"></div>
+    <label id="label-kode-koordinator" class="hidden">Kode Koordinator</label>
+    <input type="text" id="login-kode-koordinator" class="hidden" placeholder="Kode koordinator">
     <label>Password Admin</label>
     <input type="password" id="login-password" placeholder="Masukkan password">
     <button class="btn btn-primary" id="btn-login-admin">Masuk</button>
+  </div>
+</section>
+
+<section id="screen-pilih-lokasi" class="center-screen hidden">
+  <div class="login-card" style="max-width:420px;">
+    <div class="brand">PT. RAY MITRA PERKASA</div>
+    <h1 style="font-size:19px;">Pilih Lokasi</h1>
+    <p class="muted" style="text-align:center; margin:-2px 0 14px; font-size:13px;" id="subtitle-koordinator"></p>
+    <label>Lokasi Tanggung Jawab Anda</label>
+    <select id="pilih-lokasi-select"></select>
+    <button class="btn btn-primary" id="btn-masuk-lokasi">Masuk</button>
+    <button class="btn btn-outline" id="btn-ganti-akun-koordinator" style="width:100%;">Ganti Akun</button>
   </div>
 </section>
 
@@ -244,6 +258,8 @@
       <span class="role-tag" id="role-tag">-</span>
     </div>
     <div class="filter-group">
+      <label id="label-lokasi-aktif" class="hidden">Lokasi</label>
+      <select id="lokasi-aktif-select" class="hidden"></select>
       <label>Bulan</label>
       <select id="filter-bulan"></select>
       <label>Tahun</label>
@@ -488,6 +504,17 @@ const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
 const AKSES_PARAM = new URLSearchParams(location.search).get('akses') || '';
 const SESSION_KEY = 'ray_admin_session_' + KODE_KLIEN + (AKSES_PARAM ? '_' + AKSES_PARAM : '');
 
+// Mode Koordinator Lapangan: link-nya TIDAK membawa ?klien=... (koordinator
+// pegang banyak lokasi, bukan satu), jadi dibedakan lewat ?akses=koordinator.
+// ?koor=... (opsional) hanya mengisi otomatis field "Kode Koordinator" di
+// form login, meniru pola link klien yang sudah membawa identitasnya di URL.
+const MODE_KOORDINATOR = AKSES_PARAM === 'koordinator';
+const KODE_KOORDINATOR_URL = new URLSearchParams(location.search).get('koor') || '';
+const KOORDINATOR_SESSION_KEY = 'ray_koordinator_session';
+let kodeKoordinator = '';
+let klienIdAktif = '';
+let daftarLokasiKoordinator = [];
+
 // Ikon PWA yang sudah diinstal membuka halaman tanpa query string (?klien=...&akses=...).
 // Simpan link lengkap saat dibuka normal, lalu redirect otomatis ke link itu
 // kalau suatu saat dibuka tanpa parameter (mis. dari ikon di layar utama).
@@ -507,7 +534,7 @@ function rayGetCookie(nama) {
   } catch (e) { return ''; }
 }
 let SEDANG_REDIRECT_PWA = false;
-if (KODE_KLIEN) {
+if (KODE_KLIEN || MODE_KOORDINATOR) {
   raySetCookie('ray_pwa_admin_start_qs', location.search, 730);
   try { localStorage.setItem('ray_pwa_admin_start_qs', location.search); } catch(e){}
 } else {
@@ -527,6 +554,14 @@ const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Ag
 
 async function api(action, payload) {
   try {
+    const dasar = { action, kodeKlien: KODE_KLIEN, akses: AKSES_PARAM };
+    // Request admin koordinator (semua kecuali loginKoordinator sendiri) ikut
+    // menyertakan kodeKoordinator + klienId lokasi yang sedang aktif, supaya
+    // otorisasiAdmin di server tahu lokasi mana yang boleh diakses.
+    if (MODE_KOORDINATOR && action !== 'loginKoordinator') {
+      dasar.kodeKoordinator = kodeKoordinator;
+      dasar.klienId = klienIdAktif;
+    }
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -534,7 +569,7 @@ async function api(action, payload) {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
       },
-      body: JSON.stringify(Object.assign({ action, kodeKlien: KODE_KLIEN, akses: AKSES_PARAM }, payload || {}))
+      body: JSON.stringify(Object.assign(dasar, payload || {}))
     });
     return await res.json();
   } catch (e) {
@@ -568,6 +603,14 @@ function tampilkanLinkTidakValid(pesan) {
 }
 async function muatInfoSistem() {
   if (SEDANG_REDIRECT_PWA) return; // sedang redirect ke link lengkap, biarkan halaman berpindah dulu
+  if (MODE_KOORDINATOR) {
+    // Koordinator belum punya klien tetap di URL (baru dipilih setelah login),
+    // jadi branding diisi generik dulu, lalu diganti nama lokasi aktif setelah dipilih.
+    document.title = 'Admin — Koordinator Lapangan';
+    const brand = document.getElementById('brand-header');
+    if (brand) brand.textContent = 'Absensi RAY · Koordinator Lapangan';
+    return;
+  }
   if (!KODE_KLIEN) {
     tampilkanLinkTidakValid('Link admin tidak lengkap. Pastikan URL mengandung ?klien=... di akhir (link diberikan oleh Super Admin).');
     return;
@@ -588,53 +631,136 @@ async function muatInfoSistem() {
   }
 }
 
+// Form login tampil beda untuk Koordinator Lapangan: ada field "Kode
+// Koordinator" tambahan (diisi otomatis & dikunci kalau link bawa ?koor=...),
+// dan judulnya diganti supaya tidak membingungkan dengan Panel Admin klien.
+if (MODE_KOORDINATOR) {
+  document.getElementById('login-judul').textContent = 'Koordinator Lapangan';
+  document.getElementById('label-kode-koordinator').classList.remove('hidden');
+  const inputKode = document.getElementById('login-kode-koordinator');
+  inputKode.classList.remove('hidden');
+  if (KODE_KOORDINATOR_URL) { inputKode.value = KODE_KOORDINATOR_URL; inputKode.disabled = true; }
+}
+
 document.getElementById('btn-login-admin').addEventListener('click', async () => {
   const pass = document.getElementById('login-password').value;
   if (!pass) return showToast('Masukkan password.', false);
   const btn = document.getElementById('btn-login-admin');
+
+  if (MODE_KOORDINATOR) {
+    const kode = document.getElementById('login-kode-koordinator').value.trim();
+    if (!kode) return showToast('Masukkan kode koordinator.', false);
+    setBusy(btn, true, 'Memeriksa...', 'Masuk');
+    const res = await api('loginKoordinator', { kodeKoordinator: kode, password: pass });
+    setBusy(btn, false, '', 'Masuk');
+    if (!res.sukses) {
+      kirimLogKeSistem('ERROR_LOGIN_KOORDINATOR', res.pesan || 'Login koordinator gagal.');
+      return showToast(res.pesan || 'Login koordinator gagal.', false);
+    }
+    kodeKoordinator = kode;
+    adminPassword = pass;
+    daftarLokasiKoordinator = res.daftarLokasi || [];
+    localStorage.setItem(KOORDINATOR_SESSION_KEY, JSON.stringify({ kodeKoordinator, adminPassword }));
+    tampilkanPilihLokasi(res.namaKoordinator);
+    return;
+  }
+
   setBusy(btn, true, 'Memeriksa...', 'Masuk');
   const res = await api('loginAdmin', { password: pass });
   setBusy(btn, false, '', 'Masuk');
-  
+
   if (!res.sukses) {
     kirimLogKeSistem('ERROR_LOGIN_ADMIN', res.pesan || 'Password salah.');
     return showToast(res.pesan || 'Password salah.', false);
   }
-  
+
   adminPassword = pass;
   peran = res.peran;
-  
+
   // Persistensi Sesi
   localStorage.setItem(SESSION_KEY, JSON.stringify({ adminPassword, peran }));
-  
+
   masukKeApp();
 });
 document.getElementById('login-password').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('btn-login-admin').click();
 });
+
+// ---------- KOORDINATOR: PILIH LOKASI ----------
+function tampilkanPilihLokasi(namaKoordinator) {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('subtitle-koordinator').textContent = namaKoordinator ? ('Masuk sebagai ' + namaKoordinator) : '';
+  const sel = document.getElementById('pilih-lokasi-select');
+  sel.innerHTML = daftarLokasiKoordinator.map(l => '<option value="' + l.id + '">' + escapeHtml(l.namaKlien) + '</option>').join('');
+  document.getElementById('screen-pilih-lokasi').classList.remove('hidden');
+  document.getElementById('screen-pilih-lokasi').style.display = 'flex';
+}
+document.getElementById('btn-masuk-lokasi').addEventListener('click', () => {
+  const sel = document.getElementById('pilih-lokasi-select');
+  klienIdAktif = sel.value;
+  const lokasi = daftarLokasiKoordinator.find(l => l.id === klienIdAktif);
+  localStorage.setItem(KOORDINATOR_SESSION_KEY, JSON.stringify({ kodeKoordinator, adminPassword, klienIdAktif }));
+  document.getElementById('screen-pilih-lokasi').classList.add('hidden');
+  document.getElementById('screen-pilih-lokasi').style.display = 'none';
+  peran = 'koordinator';
+  masukKeApp(lokasi);
+});
+document.getElementById('btn-ganti-akun-koordinator').addEventListener('click', () => {
+  kodeKoordinator = ''; adminPassword = ''; klienIdAktif = ''; daftarLokasiKoordinator = [];
+  localStorage.removeItem(KOORDINATOR_SESSION_KEY);
+  document.getElementById('screen-pilih-lokasi').classList.add('hidden');
+  document.getElementById('screen-pilih-lokasi').style.display = 'none';
+  document.getElementById('login-password').value = '';
+  document.getElementById('screen-login').style.display = 'flex';
+});
+
 document.getElementById('btn-logout-admin').addEventListener('click', () => {
   adminPassword = ''; peran = '';
-  
+
   // Hapus Sesi
   localStorage.removeItem(SESSION_KEY);
-  
+  if (MODE_KOORDINATOR) {
+    localStorage.removeItem(KOORDINATOR_SESSION_KEY);
+    kodeKoordinator = ''; klienIdAktif = ''; daftarLokasiKoordinator = [];
+  }
+
   document.getElementById('app').classList.remove('show');
   document.getElementById('screen-login').style.display = 'flex';
   document.getElementById('login-password').value = '';
 });
 
-function masukKeApp() {
+function masukKeApp(lokasiKoordinatorAktif) {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('app').classList.add('show');
   const roleTag = document.getElementById('role-tag');
   const adalahRay = peran === 'super';
-  roleTag.textContent = adalahRay ? 'ADMIN RAY' : 'ADMIN KLIEN';
-  roleTag.classList.toggle('internal', adalahRay);
-  // Menu "Kelola Data", "Persetujuan", dan "Rekap Excel" khusus Admin Ray.
-  // Admin Klien hanya melihat 4 dashboard + Tanya AI.
-  ['tab-btn-kelola', 'tab-btn-persetujuan', 'tab-btn-rekap'].forEach((id) => {
+  const adalahKoordinator = peran === 'koordinator';
+  const adalahInternal = adalahRay || adalahKoordinator;
+  roleTag.textContent = adalahRay ? 'ADMIN RAY' : (adalahKoordinator ? 'KOORDINATOR' : 'ADMIN KLIEN');
+  roleTag.classList.toggle('internal', adalahInternal);
+  // "Kelola Data" & "Rekap Excel" khusus Admin Ray (bukan koordinator - menu
+  // koordinator sengaja dibatasi ke pengawasan dashboard + Persetujuan saja).
+  // "Persetujuan" terbuka untuk Admin Ray maupun Koordinator Lapangan.
+  // Admin Klien tidak melihat satu pun dari ketiganya.
+  ['tab-btn-kelola', 'tab-btn-rekap'].forEach((id) => {
     document.getElementById(id).classList.toggle('hidden', !adalahRay);
   });
+  document.getElementById('tab-btn-persetujuan').classList.toggle('hidden', !adalahInternal);
+
+  // Switcher lokasi di header: hanya relevan untuk koordinator yang pegang
+  // lebih dari satu lokasi. Pilih salah satu untuk pindah tanpa login ulang.
+  const labelLokasi = document.getElementById('label-lokasi-aktif');
+  const selLokasi = document.getElementById('lokasi-aktif-select');
+  if (adalahKoordinator) {
+    labelLokasi.classList.remove('hidden');
+    selLokasi.classList.remove('hidden');
+    selLokasi.innerHTML = daftarLokasiKoordinator.map(l => '<option value="' + l.id + '">' + escapeHtml(l.namaKlien) + '</option>').join('');
+    selLokasi.value = klienIdAktif;
+    perbaruiBrandingLokasiAktif(lokasiKoordinatorAktif || daftarLokasiKoordinator.find(l => l.id === klienIdAktif));
+  } else {
+    labelLokasi.classList.add('hidden');
+    selLokasi.classList.add('hidden');
+  }
 
   const now = new Date();
   filterBulan = now.getMonth() + 1; filterTahun = now.getFullYear();
@@ -645,6 +771,28 @@ function masukKeApp() {
 
   muatSemuaDashboard();
 }
+
+// Ganti nama/logo yang ditampilkan di header sesuai lokasi aktif koordinator
+// (tidak lewat infoSistem seperti admin klien biasa, karena koordinator tidak
+// punya satu kodeKlien tetap di URL — datanya dipakai langsung dari daftarLokasi
+// hasil loginKoordinator/pilihan sebelumnya, tanpa panggilan API tambahan).
+function perbaruiBrandingLokasiAktif(lokasi) {
+  if (!lokasi) return;
+  document.title = 'Admin — ' + lokasi.namaKlien;
+  const brand = document.getElementById('brand-header');
+  if (brand) brand.textContent = 'Absensi RAY · ' + lokasi.namaKlien;
+  if (lokasi.logoUrl) document.querySelectorAll('img[alt="logo"]').forEach(el => { el.src = lokasi.logoUrl; });
+}
+document.getElementById('lokasi-aktif-select').addEventListener('change', (e) => {
+  klienIdAktif = e.target.value;
+  const saved = JSON.parse(localStorage.getItem(KOORDINATOR_SESSION_KEY) || '{}');
+  saved.klienIdAktif = klienIdAktif;
+  localStorage.setItem(KOORDINATOR_SESSION_KEY, JSON.stringify(saved));
+  perbaruiBrandingLokasiAktif(daftarLokasiKoordinator.find(l => l.id === klienIdAktif));
+  muatSemuaDashboard();
+  if (document.getElementById('tab-penilaian').classList.contains('active')) muatPenilaian();
+  if (document.getElementById('tab-persetujuan').classList.contains('active')) muatPersetujuan();
+});
 document.getElementById('btn-terapkan-filter').addEventListener('click', () => {
   filterBulan = parseInt(document.getElementById('filter-bulan').value, 10);
   filterTahun = parseInt(document.getElementById('filter-tahun').value, 10);
@@ -1262,10 +1410,19 @@ async function downloadSemuaQr(key) {
   }
 }
 
+// Koordinator tidak punya KODE_KLIEN tetap di URL (bisa pindah lokasi), jadi
+// dipakai kode_klien dari lokasi yang sedang aktif di switcher header.
+function kodeKlienAktif() {
+  if (!MODE_KOORDINATOR) return KODE_KLIEN;
+  const lokasi = daftarLokasiKoordinator.find(l => l.id === klienIdAktif);
+  return lokasi ? lokasi.kodeKlien : '';
+}
+
 let kodeQrAbsensi = '';
 function initQrWeb() {
-  const otomatis = location.href.replace(/admin\.html.*$/, 'index.html') + '?klien=' + encodeURIComponent(KODE_KLIEN);
-  const saved = localStorage.getItem('linkWebKaryawan_' + KODE_KLIEN);
+  const kodeAktif = kodeKlienAktif();
+  const otomatis = location.href.replace(/admin\.html.*$/, 'index.html') + '?klien=' + encodeURIComponent(kodeAktif);
+  const saved = localStorage.getItem('linkWebKaryawan_' + kodeAktif);
   document.getElementById('qrweb-link').value = saved || otomatis;
   document.getElementById('qrweb-kode').textContent = '';
   api('getKodeQrAbsensiAdmin', { password: adminPassword }).then((res) => {
@@ -1278,7 +1435,7 @@ function initQrWeb() {
 document.getElementById('btn-generate-qrweb').addEventListener('click', () => {
   const link = document.getElementById('qrweb-link').value.trim();
   if (!link) return showToast('Isi link web karyawan dulu.', false);
-  localStorage.setItem('linkWebKaryawan_' + KODE_KLIEN, link);
+  localStorage.setItem('linkWebKaryawan_' + kodeKlienAktif(), link);
   const box = document.getElementById('qrweb-box');
   box.style.display = 'flex';
   box.innerHTML = '';
@@ -1385,15 +1542,39 @@ document.getElementById('btn-unduh-rekap').addEventListener('click', async () =>
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Rekap Absensi');
   const namaLokasiFile = lokasiPilihan ? lokasiPilihan.replace(/[^a-z0-9]+/gi, '_') : 'SemuaLokasi';
-  const namaFile = 'Rekap_Absensi_' + KODE_KLIEN + '_' + namaLokasiFile + '_' + NAMA_BULAN[filterBulan - 1] + filterTahun + '.xlsx';
+  const namaFile = 'Rekap_Absensi_' + kodeKlienAktif() + '_' + namaLokasiFile + '_' + NAMA_BULAN[filterBulan - 1] + filterTahun + '.xlsx';
   XLSX.writeFile(wb, namaFile);
 });
 
 // STARTUP AWAL + CEK SESI
 (async () => {
   await muatInfoSistem();
+
+  if (MODE_KOORDINATOR) {
+    const saved = localStorage.getItem(KOORDINATOR_SESSION_KEY);
+    if (!saved) return;
+    const s = JSON.parse(saved);
+    // Login koordinator dipanggil ulang (bukan sekadar baca localStorage) supaya
+    // daftar lokasi selalu segar — kalau akun dinonaktifkan atau lokasinya
+    // diubah oleh Super Admin sejak sesi terakhir, itu langsung ketahuan di sini.
+    const res = await api('loginKoordinator', { kodeKoordinator: s.kodeKoordinator, password: s.adminPassword });
+    if (!res.sukses) { localStorage.removeItem(KOORDINATOR_SESSION_KEY); return; }
+    kodeKoordinator = s.kodeKoordinator;
+    adminPassword = s.adminPassword;
+    daftarLokasiKoordinator = res.daftarLokasi || [];
+    const lokasiTersimpan = daftarLokasiKoordinator.find(l => l.id === s.klienIdAktif);
+    if (lokasiTersimpan) {
+      klienIdAktif = lokasiTersimpan.id;
+      peran = 'koordinator';
+      masukKeApp(lokasiTersimpan);
+    } else {
+      tampilkanPilihLokasi(res.namaKoordinator);
+    }
+    return;
+  }
+
   if (!KODE_KLIEN) return;
-  
+
   const saved = localStorage.getItem(SESSION_KEY);
   if (saved) {
     const s = JSON.parse(saved);

@@ -183,6 +183,15 @@
       </div>
       <div id="daftar-klien"></div>
     </div>
+
+    <div class="panel">
+      <div class="section-head">
+        <div class="section-title">Daftar Koordinator Lapangan</div>
+        <button class="btn btn-navy btn-sm" id="btn-buka-tambah-koordinator">+ Tambah Koordinator</button>
+      </div>
+      <p class="muted" style="font-size:13px; margin-top:-8px;">Koordinator Lapangan bisa login lewat satu link (tanpa perlu install app admin per lokasi), lalu pindah-pindah antar lokasi yang ditugaskan padanya. Hak aksesnya setara Admin Ray (Kelola Data &amp; Persetujuan) tapi dibatasi hanya ke lokasi yang dipilih di sini.</p>
+      <div id="daftar-koordinator"></div>
+    </div>
   </main>
 </div>
 
@@ -286,6 +295,56 @@
   </div>
 </div>
 
+<!-- Modal: Tambah Koordinator -->
+<div class="modal-bg hidden" id="modal-tambah-koordinator">
+  <div class="modal">
+    <div class="close-row"><button data-close="modal-tambah-koordinator">✕</button></div>
+    <h3>Tambah Koordinator Lapangan</h3>
+    <label>Nama Koordinator</label>
+    <input type="text" id="tambahkoor-nama" placeholder="Contoh: Budi Santoso">
+    <label>Kode Koordinator (untuk link, otomatis dari nama)</label>
+    <input type="text" id="tambahkoor-kode" placeholder="contoh: budi-santoso">
+    <p class="muted" style="font-size:12.5px; margin:-6px 0 0;">Tidak perlu password terpisah &mdash; koordinator login memakai password Admin Ray/Super Admin yang sama.</p>
+    <label>Lokasi yang Ditugaskan</label>
+    <div id="tambahkoor-lokasi-list" style="max-height:220px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px;"></div>
+    <button class="btn btn-navy" id="btn-simpan-tambah-koordinator">Simpan &amp; Buat Koordinator</button>
+  </div>
+</div>
+
+<!-- Modal: Edit Koordinator (nama + lokasi) -->
+<div class="modal-bg hidden" id="modal-edit-koordinator">
+  <div class="modal">
+    <div class="close-row"><button data-close="modal-edit-koordinator">✕</button></div>
+    <h3>Edit Koordinator</h3>
+    <label>Nama Koordinator</label>
+    <input type="text" id="editkoor-nama">
+    <label>Lokasi yang Ditugaskan</label>
+    <div id="editkoor-lokasi-list" style="max-height:220px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px;"></div>
+    <button class="btn btn-navy" id="btn-simpan-edit-koordinator">Simpan Perubahan</button>
+  </div>
+</div>
+
+<!-- Modal: Info & QR Koordinator -->
+<div class="modal-bg hidden" id="modal-info-koordinator">
+  <div class="modal">
+    <div class="close-row"><button data-close="modal-info-koordinator">✕</button></div>
+    <h3 id="infokoor-nama">Nama Koordinator</h3>
+    <p class="muted" id="infokoor-kode" style="margin-top:2px;"></p>
+
+    <div id="qrkoor-box"></div>
+
+    <div class="info-row">
+      <div class="lb">Link Login Koordinator</div>
+      <div class="copy-row">
+        <input type="text" id="infokoor-link" readonly>
+        <button class="btn btn-outline btn-sm" data-copy="infokoor-link" type="button">Salin</button>
+      </div>
+    </div>
+    <p class="muted" style="font-size:12.5px;">Password: sama seperti password Admin Ray/Super Admin.</p>
+    <button class="btn btn-outline" id="btn-unduh-qr-koor" type="button">Unduh QR (PNG)</button>
+  </div>
+</div>
+
 <div id="toast" class="toast hidden"></div>
 
 <script>
@@ -372,6 +431,7 @@ document.getElementById('btn-login').addEventListener('click', async () => {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('app').classList.add('show');
   muatDaftarKlien();
+  muatDaftarKoordinator();
 });
 document.getElementById('login-password').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('btn-login').click();
@@ -582,6 +642,147 @@ document.getElementById('btn-simpan-reset').addEventListener('click', async () =
   tampilkanInfoQr(klienAktifSekarang, passwordBaru);
 });
 
+// ---------- KOORDINATOR LAPANGAN ----------
+let daftarKoordinator = [];
+let koordinatorAktifSekarang = null;
+
+function linkKoordinator(kode) {
+  const base = location.href.replace(/super-admin\.html.*$/, '');
+  return base + 'admin.html?akses=koordinator&koor=' + encodeURIComponent(kode);
+}
+
+function renderLokasiChecklist(containerId, selectedIds) {
+  const box = document.getElementById(containerId);
+  const selected = new Set(selectedIds || []);
+  if (!daftarKlien.length) { box.innerHTML = '<span class="muted" style="font-size:13px;">Belum ada klien. Tambah klien dulu.</span>'; return; }
+  box.innerHTML = daftarKlien.map(k => `
+    <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13.5px; margin:6px 0; text-transform:none; color:var(--text);">
+      <input type="checkbox" value="${k.id}" ${selected.has(k.id) ? 'checked' : ''} style="width:auto;">
+      ${escapeHtml(k.namaKlien)} <span class="muted mono" style="font-size:11px;">${escapeHtml(k.kodeKlien)}</span>
+    </label>
+  `).join('');
+}
+function lokasiTerpilih(containerId) {
+  return Array.from(document.querySelectorAll('#' + containerId + ' input[type=checkbox]:checked')).map(el => el.value);
+}
+
+async function muatDaftarKoordinator() {
+  const wrap = document.getElementById('daftar-koordinator');
+  wrap.innerHTML = '<div class="empty-state">Memuat...</div>';
+  const res = await api('daftarKoordinatorSuperAdmin', {});
+  if (!res.sukses) { wrap.innerHTML = '<div class="empty-state">⚠️ ' + res.pesan + '</div>'; return; }
+  daftarKoordinator = res.daftar || [];
+  if (!daftarKoordinator.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="big">🧭</div>Belum ada koordinator. Klik "+ Tambah Koordinator".</div>';
+    return;
+  }
+  wrap.innerHTML = daftarKoordinator.map(k => `
+    <div class="klien-card ${k.status !== 'aktif' ? 'nonaktif' : ''}">
+      <div class="info">
+        <div class="nama">${escapeHtml(k.nama)}<span class="badge ${k.status === 'aktif' ? 'aktif' : 'nonaktif'}">${k.status === 'aktif' ? 'AKTIF' : 'NONAKTIF'}</span></div>
+        <div class="kode">${escapeHtml(k.kodeKoordinator)} &middot; ${k.lokasi.length} lokasi: ${(k.lokasi.map(l => escapeHtml(l.namaKlien)).join(', ')) || '-'}</div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-outline btn-sm" data-act="info" data-id="${k.id}">Info &amp; QR</button>
+        <button class="btn btn-outline btn-sm" data-act="edit" data-id="${k.id}">Edit</button>
+        <button class="btn ${k.status === 'aktif' ? 'btn-danger' : 'btn-green'} btn-sm" data-act="status" data-id="${k.id}" data-status="${k.status}">${k.status === 'aktif' ? 'Nonaktifkan' : 'Aktifkan'}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('daftar-koordinator').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const k = daftarKoordinator.find(x => x.id === id);
+
+  if (btn.dataset.act === 'info') {
+    tampilkanInfoKoordinator(k);
+    return;
+  }
+  if (btn.dataset.act === 'edit') {
+    koordinatorAktifSekarang = k;
+    document.getElementById('editkoor-nama').value = k.nama;
+    renderLokasiChecklist('editkoor-lokasi-list', k.lokasi.map(l => l.id));
+    bukaModal('modal-edit-koordinator');
+    return;
+  }
+  if (btn.dataset.act === 'status') {
+    const statusBaru = btn.dataset.status === 'aktif' ? 'nonaktif' : 'aktif';
+    const label = statusBaru === 'aktif' ? 'mengaktifkan' : 'menonaktifkan';
+    if (!confirm(`Yakin ingin ${label} koordinator "${k.nama}"?`)) return;
+    setBusy(btn, true, '...', btn.textContent);
+    const res = await api('ubahStatusKoordinatorSuperAdmin', { koordinatorId: id, status: statusBaru });
+    setBusy(btn, false, '', btn.textContent);
+    showToast(res.pesan, res.sukses);
+    if (res.sukses) muatDaftarKoordinator();
+    return;
+  }
+});
+
+function tampilkanInfoKoordinator(k) {
+  document.getElementById('infokoor-nama').textContent = k.nama;
+  document.getElementById('infokoor-kode').textContent = 'Kode: ' + k.kodeKoordinator;
+  const link = linkKoordinator(k.kodeKoordinator);
+  document.getElementById('infokoor-link').value = link;
+  const box = document.getElementById('qrkoor-box');
+  box.innerHTML = '';
+  new QRCode(box, { text: link, width: 200, height: 200 });
+  bukaModal('modal-info-koordinator');
+}
+document.getElementById('btn-unduh-qr-koor').addEventListener('click', () => {
+  const canvas = document.querySelector('#qrkoor-box canvas');
+  const img = document.querySelector('#qrkoor-box img');
+  const dataUrl = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
+  if (!dataUrl) return showToast('QR belum siap.', false);
+  const a = document.createElement('a');
+  a.href = dataUrl; a.download = 'QR_Koordinator_' + document.getElementById('infokoor-kode').textContent.replace('Kode: ', '') + '.png';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+});
+
+// ---------- TAMBAH KOORDINATOR ----------
+document.getElementById('btn-buka-tambah-koordinator').addEventListener('click', () => {
+  document.getElementById('tambahkoor-nama').value = '';
+  document.getElementById('tambahkoor-kode').value = '';
+  renderLokasiChecklist('tambahkoor-lokasi-list', []);
+  bukaModal('modal-tambah-koordinator');
+});
+document.getElementById('tambahkoor-nama').addEventListener('input', (e) => {
+  document.getElementById('tambahkoor-kode').value = slugKode(e.target.value);
+});
+document.getElementById('btn-simpan-tambah-koordinator').addEventListener('click', async () => {
+  const namaKoordinator = document.getElementById('tambahkoor-nama').value.trim();
+  const kodeKoordinator = slugKode(document.getElementById('tambahkoor-kode').value);
+  const lokasiIds = lokasiTerpilih('tambahkoor-lokasi-list');
+  if (!namaKoordinator) return showToast('Nama koordinator wajib diisi.', false);
+  if (!kodeKoordinator) return showToast('Kode koordinator wajib diisi.', false);
+  if (!lokasiIds.length) return showToast('Pilih minimal 1 lokasi.', false);
+  const btn = document.getElementById('btn-simpan-tambah-koordinator');
+  setBusy(btn, true, 'Menyimpan...', 'Simpan & Buat Koordinator');
+  const res = await api('tambahKoordinatorSuperAdmin', { namaKoordinator, kodeKoordinator, lokasiIds });
+  setBusy(btn, false, '', 'Simpan & Buat Koordinator');
+  if (!res.sukses) return showToast(res.pesan, false);
+  tutupModal('modal-tambah-koordinator');
+  showToast(res.pesan, true);
+  await muatDaftarKoordinator();
+  tampilkanInfoKoordinator({ nama: res.koordinator.namaKoordinator, kodeKoordinator: res.koordinator.kodeKoordinator });
+});
+
+// ---------- EDIT KOORDINATOR ----------
+document.getElementById('btn-simpan-edit-koordinator').addEventListener('click', async () => {
+  const namaKoordinator = document.getElementById('editkoor-nama').value.trim();
+  const lokasiIds = lokasiTerpilih('editkoor-lokasi-list');
+  if (!namaKoordinator) return showToast('Nama koordinator wajib diisi.', false);
+  if (!lokasiIds.length) return showToast('Pilih minimal 1 lokasi.', false);
+  const btn = document.getElementById('btn-simpan-edit-koordinator');
+  setBusy(btn, true, 'Menyimpan...', 'Simpan Perubahan');
+  const res = await api('editKoordinatorSuperAdmin', { koordinatorId: koordinatorAktifSekarang.id, namaKoordinator, lokasiIds });
+  setBusy(btn, false, '', 'Simpan Perubahan');
+  showToast(res.pesan, res.sukses);
+  if (res.sukses) { tutupModal('modal-edit-koordinator'); muatDaftarKoordinator(); }
+});
+
 // INIT
 const savedSuper = localStorage.getItem('ray_super_session');
 if (savedSuper) {
@@ -589,6 +790,7 @@ if (savedSuper) {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('app').classList.add('show');
   muatDaftarKlien();
+  muatDaftarKoordinator();
 }
 </script>
 <script>
