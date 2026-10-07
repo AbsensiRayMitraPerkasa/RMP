@@ -1289,6 +1289,21 @@ function renderJamKerjaSecurityRows(tipe) {
   }).join('');
 }
 
+function renderTabelJamKerjaSecurity(daftarSecurity) {
+  const urutan = ['Pagi', 'Siang', 'Malam'];
+  const terurut = [...daftarSecurity].sort((a, b) => urutan.indexOf(a.shift) - urutan.indexOf(b.shift));
+  return '<div class="panel">' +
+      '<div class="section-title">Daftar Jam Kerja Security</div>' +
+      '<div class="table-scroll"><table><thead><tr>' +
+        '<th>Shift</th><th>Jam Masuk Standar</th><th>Toleransi (menit)</th>' +
+      '</tr></thead><tbody>' +
+        (terurut.length
+          ? terurut.map(d => '<tr><td>' + d.shift + '</td><td>' + (d.jamMasuk || '').slice(0, 5) + '</td><td>' + d.toleransi + '</td></tr>').join('')
+          : '<tr><td colspan="3" class="muted">Belum diatur.</td></tr>') +
+      '</tbody></table></div>' +
+    '</div>';
+}
+
 function renderJamKerjaSecurityPanel(box, daftarSecurity) {
   jksDataCache = daftarSecurity;
   const tipeTersimpan = daftarSecurity[0] && daftarSecurity[0].tipeShift || '8jam';
@@ -1305,7 +1320,8 @@ function renderJamKerjaSecurityPanel(box, daftarSecurity) {
       '<div class="kd-form-row">' +
         '<button type="button" class="btn btn-navy" style="width:auto;" onclick="simpanJamKerjaSecurity()">Simpan Jam Kerja Security</button>' +
       '</div>' +
-    '</div>';
+    '</div>' +
+    renderTabelJamKerjaSecurity(daftarSecurity);
   box.insertAdjacentHTML('afterbegin', html);
   renderJamKerjaSecurityRows(tipeTersimpan);
 }
