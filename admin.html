@@ -1073,8 +1073,10 @@ const ENTITAS_KELOLA = {
     title: 'Jam Kerja Standar',
     listAction: 'getDaftarJamKerjaAdmin', addAction: 'tambahJamKerjaAdmin',
     editAction: 'editJamKerjaAdmin', delAction: 'hapusJamKerjaAdmin',
+    // Security diatur lewat panel shift terpisah (lihat renderJamKerjaSecurityPanel),
+    // karena bisa punya 2-3 baris jam kerja (per shift), bukan satu baris seperti bagian lain.
     fields: [
-      { key: 'bagianKerja', label: 'Bagian Kerja', type: 'select', options: ['Security','Cleaning Service','Administrasi','Lainnya'] },
+      { key: 'bagianKerja', label: 'Bagian Kerja', type: 'select', options: ['Cleaning Service','Administrasi','Lainnya'] },
       { key: 'jamMasuk', label: 'Jam Masuk Standar (HH:mm)', type: 'text' },
       { key: 'toleransi', label: 'Toleransi (menit)', type: 'number' }
     ]
@@ -1087,10 +1089,17 @@ async function muatKelola(key) {
   const box = document.getElementById('sub-' + key);
   const res = await api(cfg.listAction, { password: adminPassword });
   if (!res.sukses) { box.innerHTML = '<div class="empty-state">' + res.pesan + '</div>'; return; }
-  kelolaCache[key] = res.daftar || [];
+  let daftarSecurity = [];
+  if (key === 'jamkerja') {
+    daftarSecurity = (res.daftar || []).filter(d => d.bagianKerja === 'Security');
+    kelolaCache[key] = (res.daftar || []).filter(d => d.bagianKerja !== 'Security');
+  } else {
+    kelolaCache[key] = res.daftar || [];
+  }
   renderFormKelola(key, box, cfg);
   renderTabelKelola(key, box, cfg);
   document.getElementById('kd-' + key + '-form').addEventListener('submit', e => { e.preventDefault(); simpanKelola(key); });
+  if (key === 'jamkerja') renderJamKerjaSecurityPanel(box, daftarSecurity);
 }
 
 const kelolaFotoPending = {};
@@ -1263,6 +1272,54 @@ async function hapusKelola(key, id) {
   const res = await api(cfg.delAction, { password: adminPassword, id });
   showToast(res.pesan, res.sukses);
   if (res.sukses) muatKelola(key);
+}
+
+// ---- Jam Kerja Security: shift (8 jam = Pagi/Siang/Malam, 12 jam = Pagi/Malam) ----
+const JKS_SHIFT_MAP = { '8jam': ['Pagi', 'Siang', 'Malam'], '12jam': ['Pagi', 'Malam'] };
+let jksDataCache = [];
+
+function renderJamKerjaSecurityRows(tipe) {
+  const shifts = JKS_SHIFT_MAP[tipe] || JKS_SHIFT_MAP['8jam'];
+  document.getElementById('jks-rows').innerHTML = shifts.map(s => {
+    const existing = jksDataCache.find(d => d.shift === s && d.tipeShift === tipe) || {};
+    return '<div class="kd-form-row" style="align-items:flex-end;">' +
+        '<div style="flex:1; min-width:160px;"><label>Shift ' + s + ' &ndash; Jam Masuk (HH:mm)</label><input type="text" id="jks-jam-' + s + '" value="' + (existing.jamMasuk || '') + '"></div>' +
+        '<div style="flex:1; min-width:120px;"><label>Toleransi (menit)</label><input type="number" id="jks-tol-' + s + '" value="' + (existing.toleransi != null ? existing.toleransi : 0) + '"></div>' +
+      '</div>';
+  }).join('');
+}
+
+function renderJamKerjaSecurityPanel(box, daftarSecurity) {
+  jksDataCache = daftarSecurity;
+  const tipeTersimpan = daftarSecurity[0] && daftarSecurity[0].tipeShift || '8jam';
+  const html =
+    '<div class="panel">' +
+      '<div class="section-title">Jam Kerja Security (Shift)</div>' +
+      '<p class="muted" style="font-size:13px; margin-top:-6px;">Security bekerja rotasi shift, bukan satu jam masuk tunggal. Pilih tipe shift, lalu isi jam masuk dan toleransi tiap shift.</p>' +
+      '<label>Tipe Shift</label>' +
+      '<select id="jks-tipe" onchange="renderJamKerjaSecurityRows(this.value)">' +
+        '<option value="8jam"' + (tipeTersimpan === '8jam' ? ' selected' : '') + '>8 Jam (Pagi, Siang, Malam)</option>' +
+        '<option value="12jam"' + (tipeTersimpan === '12jam' ? ' selected' : '') + '>12 Jam (Pagi, Malam)</option>' +
+      '</select>' +
+      '<div id="jks-rows"></div>' +
+      '<div class="kd-form-row">' +
+        '<button type="button" class="btn btn-navy" style="width:auto;" onclick="simpanJamKerjaSecurity()">Simpan Jam Kerja Security</button>' +
+      '</div>' +
+    '</div>';
+  box.insertAdjacentHTML('afterbegin', html);
+  renderJamKerjaSecurityRows(tipeTersimpan);
+}
+
+async function simpanJamKerjaSecurity() {
+  const tipeShift = document.getElementById('jks-tipe').value;
+  const shifts = JKS_SHIFT_MAP[tipeShift].map(s => ({
+    shift: s,
+    jamMasuk: document.getElementById('jks-jam-' + s).value.trim(),
+    toleransi: document.getElementById('jks-tol-' + s).value.trim()
+  }));
+  const res = await api('simpanJamKerjaSecurityAdmin', { password: adminPassword, tipeShift, shifts });
+  showToast(res.pesan, res.sukses);
+  if (res.sukses) muatKelola('jamkerja');
 }
 
 function tampilkanQr(kode, judul, label) {
