@@ -707,7 +707,10 @@ let daftarTitikPatroli = [];
 let daftarTugasKebersihan = [];
 let posisiTerkini = null;        
 let watchId = null;
-let leafletMap = null, leafletMarker = null, leafletKantorMarker = null, leafletKantorCircle = null;
+let leafletMap = null, leafletMarker = null;
+// Satu entri { lokasi, marker, circle } per titik lokasi absensi milik klien —
+// semua digambar sekaligus di peta, bukan cuma yang terdekat dari GPS karyawan.
+let leafletLokasiLayers = [];
 
 async function api(action, payload) {
   try {
@@ -926,11 +929,31 @@ function initMapFallback() {
     scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, touchZoom: false, keyboard: false
   }).setView([lok.lat, lok.lng], 16);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(leafletMap);
-  leafletKantorMarker = L.circleMarker([lok.lat, lok.lng], { radius: 8, color: '#17385c', weight: 2, fillColor: '#17385c', fillOpacity: .9 })
-    .addTo(leafletMap).bindPopup('Titik Absensi: ' + lok.nama);
-  leafletKantorCircle = L.circle([lok.lat, lok.lng], { radius: lok.radius, color: '#17385c', weight: 1, dashArray: '4,4', fillColor: '#17385c', fillOpacity: .08 })
-    .addTo(leafletMap);
+  gambarSemuaLokasiKerja();
   setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 200);
+}
+// Gambar seluruh titik lokasi absensi klien sekaligus (dipanggil sekali saat
+// peta dibuat) — supaya klien dengan beberapa lokasi absensi (misal beberapa
+// pos/gedung) terlihat semua, tidak cuma titik terdekat dari GPS karyawan.
+function gambarSemuaLokasiKerja() {
+  if (!leafletMap || leafletLokasiLayers.length) return;
+  daftarLokasiKerja.forEach(lok => {
+    const marker = L.circleMarker([lok.lat, lok.lng], { radius: 8, color: '#17385c', weight: 2, fillColor: '#17385c', fillOpacity: .9 })
+      .addTo(leafletMap).bindPopup('Titik Absensi: ' + lok.nama);
+    const circle = L.circle([lok.lat, lok.lng], { radius: lok.radius, color: '#17385c', weight: 1, dashArray: '4,4', fillColor: '#17385c', fillOpacity: .08 })
+      .addTo(leafletMap);
+    leafletLokasiLayers.push({ lokasi: lok, marker, circle });
+  });
+}
+// Tandai titik lokasi terdekat dengan warna beda, sisanya tetap biru navy —
+// supaya tetap jelas mana target absen karyawan saat ini walau semua titik tampil.
+function tandaiLokasiTerdekat(lokasiTerdekat) {
+  leafletLokasiLayers.forEach(({ lokasi, marker, circle }) => {
+    const aktif = lokasi === lokasiTerdekat;
+    const warna = aktif ? '#1a9a56' : '#17385c';
+    marker.setStyle({ color: warna, fillColor: warna });
+    circle.setStyle({ color: warna, fillColor: warna });
+  });
 }
 function tampilkanGpsDiblokir(pesan) {
   document.getElementById('gps-status').textContent = 'Akses lokasi diblokir';
@@ -1002,18 +1025,11 @@ function updatePosisi(lat, lng, akurasi) {
       leafletMarker.setLatLng([lat, lng]);
     }
 
+    gambarSemuaLokasiKerja();
     if (terdekat) {
-      const kLat = terdekat.lokasi.lat, kLng = terdekat.lokasi.lng;
-      if (!leafletKantorMarker) {
-        leafletKantorMarker = L.circleMarker([kLat, kLng], { radius: 8, color: '#17385c', weight: 2, fillColor: '#17385c', fillOpacity: .9 })
-          .addTo(leafletMap).bindPopup('Titik Absensi: ' + terdekat.lokasi.nama);
-        leafletKantorCircle = L.circle([kLat, kLng], { radius: terdekat.lokasi.radius, color: '#17385c', weight: 1, dashArray: '4,4', fillColor: '#17385c', fillOpacity: .08 })
-          .addTo(leafletMap);
-      } else {
-        leafletKantorMarker.setLatLng([kLat, kLng]).setPopupContent('Titik Absensi: ' + terdekat.lokasi.nama);
-        leafletKantorCircle.setLatLng([kLat, kLng]).setRadius(terdekat.lokasi.radius);
-      }
-      leafletMap.fitBounds(L.latLngBounds([[lat, lng], [kLat, kLng]]), { padding: [26, 26], maxZoom: 17 });
+      tandaiLokasiTerdekat(terdekat.lokasi);
+      const titikBounds = [[lat, lng]].concat(daftarLokasiKerja.map(l => [l.lat, l.lng]));
+      leafletMap.fitBounds(L.latLngBounds(titikBounds), { padding: [26, 26], maxZoom: 17 });
     } else {
       leafletMap.setView([lat, lng], 16);
     }
