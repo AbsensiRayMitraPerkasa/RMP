@@ -960,8 +960,8 @@ function initMapFallback() {
   if (leafletMap || !window.L || !daftarLokasiKerja.length) return;
   const lok = daftarLokasiKerja[0];
   leafletMap = L.map('gps-map', {
-    zoomControl: false, attributionControl: false, dragging: false,
-    scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, touchZoom: false, keyboard: false
+    zoomControl: true, attributionControl: false, dragging: true,
+    scrollWheelZoom: true, doubleClickZoom: true, boxZoom: true, touchZoom: true, keyboard: true
   }).setView([lok.lat, lok.lng], 16);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(leafletMap);
   gambarSemuaLokasiKerja();
@@ -1059,11 +1059,12 @@ function updatePosisi(lat, lng, akurasi, waktuPosisi) {
   if (window.L) {
     if (!leafletMap) {
       leafletMap = L.map('gps-map', {
-        zoomControl: false, attributionControl: false, dragging: false,
-        scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, touchZoom: false, keyboard: false
+        zoomControl: true, attributionControl: false, dragging: true,
+        scrollWheelZoom: true, doubleClickZoom: true, boxZoom: true, touchZoom: true, keyboard: true
       }).setView([lat, lng], 16);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(leafletMap);
     }
+    const petaBaruDibuat = !leafletMarker;
     if (!leafletMarker) {
       leafletMarker = L.circleMarker([lat, lng], { radius: 8, color: '#1a9a56', weight: 2, fillColor: '#1a9a56', fillOpacity: .9 })
         .addTo(leafletMap).bindPopup('Lokasi Anda');
@@ -1072,12 +1073,17 @@ function updatePosisi(lat, lng, akurasi, waktuPosisi) {
     }
 
     gambarSemuaLokasiKerja();
-    if (terdekat) {
-      tandaiLokasiTerdekat(terdekat.lokasi);
-      const titikBounds = [[lat, lng]].concat(daftarLokasiKerja.map(l => [l.lat, l.lng]));
-      leafletMap.fitBounds(L.latLngBounds(titikBounds), { padding: [26, 26], maxZoom: 17 });
-    } else {
-      leafletMap.setView([lat, lng], 16);
+    if (terdekat) tandaiLokasiTerdekat(terdekat.lokasi);
+    // Hanya atur ulang posisi/zoom peta sekali saat peta baru dibuat (fix GPS
+    // pertama) — setelah itu biarkan karyawan bebas geser/zoom peta sendiri,
+    // supaya tidak otomatis ter-reset setiap ada update GPS baru.
+    if (petaBaruDibuat) {
+      if (terdekat) {
+        const titikBounds = [[lat, lng]].concat(daftarLokasiKerja.map(l => [l.lat, l.lng]));
+        leafletMap.fitBounds(L.latLngBounds(titikBounds), { padding: [26, 26], maxZoom: 17 });
+      } else {
+        leafletMap.setView([lat, lng], 16);
+      }
     }
   }
   cekTombolPresensi();
