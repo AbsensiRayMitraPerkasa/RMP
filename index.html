@@ -712,6 +712,14 @@ let leafletMap = null, leafletMarker = null;
 // semua digambar sekaligus di peta, bukan cuma yang terdekat dari GPS karyawan.
 let leafletLokasiLayers = [];
 
+// Deteksi anomali GPS (indikasi Fake GPS/mock location) sebatas yang bisa
+// dibaca dari Geolocation API browser — lihat catatan di evaluasiAnomaliGps().
+let posisiSebelumnya = null;
+let gpsAnomaliAktif = false;
+let gpsAnomaliPesan = '';
+const BATAS_KECEPATAN_GPS_MPS = 60; // ~216 km/jam, longgar supaya tak salah tangkap jitter GPS normal
+const BATAS_GPS_BASI_MS = 15000;    // posisi lebih tua dari ini dari waktu sekarang dianggap janggal
+
 async function api(action, payload) {
   try {
     const res = await fetch(API_URL, {
@@ -912,6 +920,33 @@ function jarakMeter(lat1, lon1, lat2, lon2) {
   const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
+// Deteksi anomali GPS sebatas sinyal yang tersedia lewat Geolocation API web:
+// 1) lompatan jarak/waktu yang melebihi kecepatan wajar (indikasi lokasi "melompat"
+//    karena diganti paksa oleh app Fake GPS), dan
+// 2) timestamp posisi yang jauh lebih tua dari waktu sekarang (indikasi posisi
+//    ditahan/di-replay oleh mock location provider).
+// CATATAN: ini heuristik sisi klien saja, bukan pengganti validasi di server —
+// kode ini publik dan endpoint API-nya bisa dipanggil langsung di luar halaman ini.
+function evaluasiAnomaliGps(lat, lng, waktuPosisi) {
+  const sekarang = Date.now();
+  const anomali = [];
+
+  if (waktuPosisi && (sekarang - waktuPosisi) > BATAS_GPS_BASI_MS) {
+    anomali.push('Posisi GPS basi (timestamp jauh dari waktu sekarang).');
+  }
+
+  if (posisiSebelumnya) {
+    const jarak = jarakMeter(posisiSebelumnya.lat, posisiSebelumnya.lng, lat, lng);
+    const dt = ((waktuPosisi || sekarang) - posisiSebelumnya.waktu) / 1000;
+    if (dt > 0.5) {
+      const kecepatan = jarak / dt;
+      if (kecepatan > BATAS_KECEPATAN_GPS_MPS) anomali.push('Lokasi melompat tidak wajar (' + Math.round(kecepatan * 3.6) + ' km/jam).');
+    }
+  }
+
+  posisiSebelumnya = { lat, lng, waktu: waktuPosisi || sekarang };
+  return anomali;
+}
 function cariLokasiTerdekat(lat, lng) {
   if (!daftarLokasiKerja.length) return null;
   let terdekat = null, jarakMin = Infinity;
@@ -972,7 +1007,7 @@ function mulaiPantauLokasi() {
   }
 
   watchId = navigator.geolocation.watchPosition(
-    pos => { updatePosisi(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy)); },
+    pos => { updatePosisi(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy), pos.timestamp); },
     err => {
       if (err.code === err.PERMISSION_DENIED) {
         tampilkanGpsDiblokir(err.message);
@@ -989,16 +1024,27 @@ document.getElementById('btn-retry-gps').addEventListener('click', () => {
   document.getElementById('gps-status').textContent = 'Mencari lokasi...';
   mulaiPantauLokasi();
 });
-function updatePosisi(lat, lng, akurasi) {
+function updatePosisi(lat, lng, akurasi, waktuPosisi) {
   posisiTerkini = { lat, lng, akurasi };
+
+  const anomali = evaluasiAnomaliGps(lat, lng, waktuPosisi);
+  if (anomali.length && !gpsAnomaliAktif) kirimLogKeSistem('SUSPECT_GPS', anomali.join(' | '));
+  gpsAnomaliAktif = anomali.length > 0;
+  gpsAnomaliPesan = anomali.join(' | ');
+
   document.getElementById('gps-denied-banner').classList.add('hidden');
-  document.getElementById('gps-dot').style.background = 'var(--green)';
+  document.getElementById('gps-dot').style.background = gpsAnomaliAktif ? 'var(--red)' : 'var(--green)';
   document.getElementById('gps-akurasi').textContent = '± ' + akurasi + ' m';
   document.getElementById('link-gmaps').href = 'https://www.google.com/maps?q=' + lat + ',' + lng;
 
   const terdekat = cariLokasiTerdekat(lat, lng);
   const banner = document.getElementById('gps-banner');
-  if (terdekat) {
+  if (gpsAnomaliAktif) {
+    document.getElementById('gps-jarak').textContent = terdekat ? Math.round(terdekat.jarak) + ' m' : '-';
+    document.getElementById('gps-lokasi').textContent = terdekat ? terdekat.lokasi.nama : '-';
+    banner.classList.toggle('ok', false);
+    document.getElementById('gps-status').textContent = 'Lokasi GPS tidak wajar, coba lagi';
+  } else if (terdekat) {
     document.getElementById('gps-jarak').textContent = Math.round(terdekat.jarak) + ' m';
     document.getElementById('gps-lokasi').textContent = terdekat.lokasi.nama;
     const dalamRadius = terdekat.jarak <= terdekat.lokasi.radius;
@@ -1040,7 +1086,7 @@ document.getElementById('link-kalibrasi').addEventListener('click', (e) => {
   e.preventDefault();
   document.getElementById('gps-status').textContent = 'Mengkalibrasi ulang...';
   navigator.geolocation.getCurrentPosition(
-    pos => updatePosisi(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy)),
+    pos => updatePosisi(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy), pos.timestamp),
     err => {
       if (err.code === err.PERMISSION_DENIED) {
         tampilkanGpsDiblokir(err.message);
@@ -1172,7 +1218,7 @@ function cekTombolPresensi() {
   const st = sesi.status || {};
   const btnMasuk = document.getElementById('btn-presensi-masuk');
   const btnPulang = document.getElementById('btn-presensi-pulang');
-  const adaLokasi = !!posisiTerkini;
+  const adaLokasi = !!posisiTerkini && !gpsAnomaliAktif;
 
   btnMasuk.classList.toggle('btn-navy', !st.sudahClockIn && adaLokasi);
   btnMasuk.classList.toggle('btn-tan', st.sudahClockIn || !adaLokasi);
@@ -1282,6 +1328,7 @@ document.getElementById('btn-retake-presensi').addEventListener('click', async (
 document.getElementById('btn-flip-presensi').addEventListener('click', () => toggleCamera(document.getElementById('presensi-video'), 'presensi'));
 document.getElementById('btn-kirim-presensi').addEventListener('click', async () => {
   if (!presensiFotoB64 || !posisiTerkini) return showToast('Foto dan lokasi wajib tersedia.', false);
+  if (gpsAnomaliAktif) return showToast('Lokasi GPS terdeteksi tidak wajar (' + gpsAnomaliPesan + '). Coba lagi di lokasi yang stabil.', false);
   const btn = document.getElementById('btn-kirim-presensi');
   setBusy(btn, true, 'Mengirim...', 'Kirim');
   const res = await api('simpanAbsen', {
@@ -1362,7 +1409,7 @@ document.getElementById('btn-shoot-patroli').addEventListener('click', () => {
   document.getElementById('patroli-camwrap2').classList.add('hidden');
   document.getElementById('btn-shoot-patroli').classList.add('hidden');
   document.getElementById('btn-retake-patroli').classList.remove('hidden');
-  document.getElementById('btn-kirim-patroli').disabled = !posisiTerkini;
+  document.getElementById('btn-kirim-patroli').disabled = !posisiTerkini || gpsAnomaliAktif;
   stopCameraByKey('patroli2');
 });
 document.getElementById('btn-retake-patroli').addEventListener('click', async () => {
@@ -1377,6 +1424,7 @@ document.getElementById('btn-retake-patroli').addEventListener('click', async ()
 document.getElementById('btn-batal-patroli').addEventListener('click', () => showScreen('home'));
 document.getElementById('btn-kirim-patroli').addEventListener('click', async () => {
   if (!patroliState.fotoB64 || !posisiTerkini) return showToast('Foto dan lokasi wajib.', false);
+  if (gpsAnomaliAktif) return showToast('Lokasi GPS terdeteksi tidak wajar. Coba lagi di lokasi yang stabil.', false);
   const btn = document.getElementById('btn-kirim-patroli');
   setBusy(btn, true, 'Mengirim...', 'Kirim Laporan Patroli');
   const res = await api('simpanPatroli', {
@@ -1445,7 +1493,7 @@ document.getElementById('btn-pilih-manual-kegiatan').addEventListener('click', (
   mulaiLaporKegiatan(v);
 });
 function cekTombolKirimKegiatan() {
-  document.getElementById('btn-kirim-kegiatan').disabled = !(kegiatanState.fotoSebelum && kegiatanState.fotoSesudah && posisiTerkini);
+  document.getElementById('btn-kirim-kegiatan').disabled = !(kegiatanState.fotoSebelum && kegiatanState.fotoSesudah && posisiTerkini) || gpsAnomaliAktif;
 }
 document.getElementById('btn-shoot-sebelum').addEventListener('click', () => {
   const dataUrl = captureFrame(document.getElementById('keg-video-sebelum'), document.getElementById('keg-canvas-sebelum'));
@@ -1491,6 +1539,7 @@ document.getElementById('btn-batal-kegiatan').addEventListener('click', () => sh
 document.getElementById('btn-kirim-kegiatan').addEventListener('click', async () => {
   if (!kegiatanState.fotoSebelum || !kegiatanState.fotoSesudah) return showToast('Foto sebelum & sesudah wajib.', false);
   if (!posisiTerkini) return showToast('Lokasi GPS belum didapat.', false);
+  if (gpsAnomaliAktif) return showToast('Lokasi GPS terdeteksi tidak wajar. Coba lagi di lokasi yang stabil.', false);
   const btn = document.getElementById('btn-kirim-kegiatan');
   setBusy(btn, true, 'Mengirim...', 'Kirim Laporan');
   const res = await api('simpanLaporanKegiatan', {
