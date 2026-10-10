@@ -1227,13 +1227,16 @@ function cekTombolPresensi() {
   const btnPulang = document.getElementById('btn-presensi-pulang');
   const adaLokasi = !!posisiTerkini && !gpsAnomaliAktif;
 
-  btnMasuk.classList.toggle('btn-navy', !st.sudahClockIn && adaLokasi);
-  btnMasuk.classList.toggle('btn-tan', st.sudahClockIn || !adaLokasi);
-  btnMasuk.disabled = st.sudahClockIn || !adaLokasi;
+  // shiftAktif = ada CLOCK IN yang belum dipasangkan CLOCK OUT. Dipakai
+  // (bukan sudahClockIn/sudahClockOut) supaya karyawan bisa CLOCK IN lagi
+  // setelah satu pasang shift selesai hari itu (lanjut/dobel shift).
+  btnMasuk.classList.toggle('btn-navy', !st.shiftAktif && adaLokasi);
+  btnMasuk.classList.toggle('btn-tan', st.shiftAktif || !adaLokasi);
+  btnMasuk.disabled = st.shiftAktif || !adaLokasi;
 
-  btnPulang.classList.toggle('btn-navy', st.sudahClockIn && !st.sudahClockOut && adaLokasi);
-  btnPulang.classList.toggle('btn-tan', !(st.sudahClockIn && !st.sudahClockOut) || !adaLokasi);
-  btnPulang.disabled = !st.sudahClockIn || st.sudahClockOut || !adaLokasi;
+  btnPulang.classList.toggle('btn-navy', st.shiftAktif && adaLokasi);
+  btnPulang.classList.toggle('btn-tan', !st.shiftAktif || !adaLokasi);
+  btnPulang.disabled = !st.shiftAktif || !adaLokasi;
 }
 
 function muatHome() {
