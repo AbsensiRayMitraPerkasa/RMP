@@ -362,6 +362,10 @@
           <option value="Security">Security</option>
           <option value="Cleaning Service">Cleaning Service</option>
           <option value="Administrasi">Administrasi</option>
+          <option value="Pengemudi">Pengemudi</option>
+          <option value="Tenaga Lapangan">Tenaga Lapangan</option>
+          <option value="Tenaga Produksi">Tenaga Produksi</option>
+          <option value="Tenaga Operator">Tenaga Operator</option>
           <option value="Lainnya">Lainnya</option>
         </select>
       </div>
@@ -1024,7 +1028,7 @@ const ENTITAS_KELOLA = {
       { key: 'fotoUrl', label: 'Foto Karyawan', type: 'foto' },
       { key: 'noHp', label: 'No HP (opsional)', type: 'text' },
       { key: 'alamat', label: 'Alamat (opsional)', type: 'text' },
-      { key: 'bagianKerja', label: 'Bagian Kerja', type: 'select', options: ['Security','Cleaning Service','Administrasi','Lainnya'] },
+      { key: 'bagianKerja', label: 'Bagian Kerja', type: 'select', options: ['Security','Cleaning Service','Administrasi','Pengemudi','Tenaga Lapangan','Tenaga Produksi','Tenaga Operator','Lainnya'] },
       { key: 'pin', label: 'PIN (4 digit)', type: 'text' }
     ]
   },
@@ -1077,7 +1081,7 @@ const ENTITAS_KELOLA = {
     // Security diatur lewat panel shift terpisah (lihat renderJamKerjaSecurityPanel),
     // karena bisa punya 2-3 baris jam kerja (per shift), bukan satu baris seperti bagian lain.
     fields: [
-      { key: 'bagianKerja', label: 'Bagian Kerja', type: 'select', options: ['Cleaning Service','Administrasi','Lainnya'] },
+      { key: 'bagianKerja', label: 'Bagian Kerja', type: 'select', options: ['Cleaning Service','Administrasi','Pengemudi','Tenaga Lapangan','Tenaga Produksi','Tenaga Operator','Lainnya'] },
       { key: 'jamMasuk', label: 'Jam Masuk Standar (HH:mm)', type: 'text' },
       { key: 'toleransi', label: 'Toleransi (menit)', type: 'number' }
     ]
