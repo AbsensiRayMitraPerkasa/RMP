@@ -1259,7 +1259,8 @@ async function simpanKelola(key) {
       if (pending) { payload.fotoBase64 = pending.base64; payload.mimeType = pending.mimeType; }
       return;
     }
-    payload[f.key] = document.getElementById('kd-' + key + '-' + f.key).value.trim();
+    const nilai = document.getElementById('kd-' + key + '-' + f.key).value.trim();
+    payload[f.key] = f.type === 'number' ? (Number(nilai) || 0) : nilai;
   });
   let res;
   if (id) {
