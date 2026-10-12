@@ -381,6 +381,7 @@
               <th class="num">Rata&sup2; Telat<br><span class="muted">Target &lt;10 menit</span></th>
               <th class="num">Mangkir<br><span class="muted">Target 0</span></th>
               <th class="num">Validitas Lokasi<br><span class="muted">Target 100%</span></th>
+              <th class="num">Potongan Telat<br><span class="muted">Rp</span></th>
             </tr></thead>
             <tbody id="penilaian-absensi-table"></tbody>
           </table>
@@ -943,8 +944,9 @@ async function muatPenilaian() {
       '<td class="num">' + kpiBadge(s.rataRataTelat + ' menit', s.rataRataTelat < 10) + '</td>' +
       '<td class="num">' + kpiBadge(s.mangkir + ' hari', s.mangkir === 0) + '</td>' +
       '<td class="num">' + kpiBadge(s.geofencing + '%', s.geofencing === 100) + '</td>' +
+      '<td class="num">' + kpiBadge('Rp ' + s.totalPotongan.toLocaleString('id-ID'), s.totalPotongan === 0) + '</td>' +
     '</tr>'
-  ).join('') : '<tr><td colspan="6" class="muted">Belum ada staf di bagian kerja ini.</td></tr>';
+  ).join('') : '<tr><td colspan="7" class="muted">Belum ada staf di bagian kerja ini.</td></tr>';
 
   const panelPatroli = document.getElementById('penilaian-patroli-panel');
   if (bagian === 'Security') {
@@ -1083,7 +1085,8 @@ const ENTITAS_KELOLA = {
     fields: [
       { key: 'bagianKerja', label: 'Bagian Kerja', type: 'select', options: ['Cleaning Service','Administrasi','Pengemudi','Tenaga Lapangan','Tenaga Produksi','Tenaga Operator','Lainnya'] },
       { key: 'jamMasuk', label: 'Jam Masuk Standar (HH:mm)', type: 'text' },
-      { key: 'toleransi', label: 'Toleransi (menit)', type: 'number' }
+      { key: 'toleransi', label: 'Toleransi (menit)', type: 'number' },
+      { key: 'potonganPerJam', label: 'Potongan per Jam Telat (Rp)', type: 'number' }
     ]
   }
 };
@@ -1291,6 +1294,7 @@ function renderJamKerjaSecurityRows(tipe) {
     return '<div class="kd-form-row" style="align-items:flex-end;">' +
         '<div style="flex:1; min-width:160px;"><label>Shift ' + s + ' &ndash; Jam Masuk (HH:mm)</label><input type="text" id="jks-jam-' + s + '" value="' + (existing.jamMasuk || '') + '"></div>' +
         '<div style="flex:1; min-width:120px;"><label>Toleransi (menit)</label><input type="number" id="jks-tol-' + s + '" value="' + (existing.toleransi != null ? existing.toleransi : 0) + '"></div>' +
+        '<div style="flex:1; min-width:140px;"><label>Potongan/Jam Telat (Rp)</label><input type="number" id="jks-pot-' + s + '" value="' + (existing.potonganPerJam != null ? existing.potonganPerJam : 0) + '"></div>' +
       '</div>';
   }).join('');
 }
@@ -1301,11 +1305,11 @@ function renderTabelJamKerjaSecurity(daftarSecurity) {
   return '<div class="panel">' +
       '<div class="section-title">Daftar Jam Kerja Security</div>' +
       '<div class="table-scroll"><table><thead><tr>' +
-        '<th>Shift</th><th>Jam Masuk Standar</th><th>Toleransi (menit)</th>' +
+        '<th>Shift</th><th>Jam Masuk Standar</th><th>Toleransi (menit)</th><th>Potongan/Jam Telat (Rp)</th>' +
       '</tr></thead><tbody>' +
         (terurut.length
-          ? terurut.map(d => '<tr><td>' + d.shift + '</td><td>' + (d.jamMasuk || '').slice(0, 5) + '</td><td>' + d.toleransi + '</td></tr>').join('')
-          : '<tr><td colspan="3" class="muted">Belum diatur.</td></tr>') +
+          ? terurut.map(d => '<tr><td>' + d.shift + '</td><td>' + (d.jamMasuk || '').slice(0, 5) + '</td><td>' + d.toleransi + '</td><td>' + (d.potonganPerJam || 0) + '</td></tr>').join('')
+          : '<tr><td colspan="4" class="muted">Belum diatur.</td></tr>') +
       '</tbody></table></div>' +
     '</div>';
 }
@@ -1337,7 +1341,8 @@ async function simpanJamKerjaSecurity() {
   const shifts = JKS_SHIFT_MAP[tipeShift].map(s => ({
     shift: s,
     jamMasuk: document.getElementById('jks-jam-' + s).value.trim(),
-    toleransi: document.getElementById('jks-tol-' + s).value.trim()
+    toleransi: document.getElementById('jks-tol-' + s).value.trim(),
+    potonganPerJam: document.getElementById('jks-pot-' + s).value.trim()
   }));
   const res = await api('simpanJamKerjaSecurityAdmin', { password: adminPassword, tipeShift, shifts });
   showToast(res.pesan, res.sukses);
