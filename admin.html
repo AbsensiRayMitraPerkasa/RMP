@@ -304,10 +304,10 @@
       </div>
       <div class="panel">
         <div class="section-title">Riwayat Absensi (Detail)</div>
-        <p class="muted" style="font-size:12.5px; margin-top:-6px;">Setiap catatan clock in/out pada bulan &amp; tahun yang difilter di atas, lengkap dengan jarak ke lokasi kerja dan foto bukti.</p>
+        <p class="muted" style="font-size:12.5px; margin-top:-6px;">Clock in &amp; clock out tiap karyawan digabung satu baris per bulan &amp; tahun yang difilter di atas, lengkap dengan jarak ke lokasi kerja dan foto bukti.</p>
         <div class="table-scroll">
           <table>
-            <thead><tr><th>Tanggal</th><th>Nama</th><th>Bagian</th><th>Jenis</th><th>Jam</th><th>Telat</th><th>Lokasi &amp; Jarak</th><th>Akurasi GPS</th><th>Foto</th></tr></thead>
+            <thead><tr><th>Tanggal</th><th>Nama</th><th>Bagian</th><th>Jam Masuk</th><th>Telat</th><th>Lokasi &amp; Jarak Masuk</th><th>Akurasi GPS Masuk</th><th>Foto Masuk</th><th>Jam Keluar</th><th>Lokasi &amp; Jarak Keluar</th><th>Akurasi GPS Keluar</th><th>Foto Keluar</th></tr></thead>
             <tbody id="absensi-detail-table"></tbody>
           </table>
         </div>
@@ -862,21 +862,24 @@ async function muatRiwayatPatroliDetail() {
 async function muatRiwayatAbsensiDetail() {
   const tbody = document.getElementById('absensi-detail-table');
   const res = await api('daftarAbsensiDetailAdmin', { password: adminPassword, bulan: filterBulan, tahun: filterTahun });
-  if (!res.sukses) { tbody.innerHTML = '<tr><td colspan="9" class="muted">' + res.pesan + '</td></tr>'; return; }
+  if (!res.sukses) { tbody.innerHTML = '<tr><td colspan="12" class="muted">' + res.pesan + '</td></tr>'; return; }
   const daftar = res.daftar || [];
   tbody.innerHTML = daftar.length ? daftar.map(r =>
     '<tr>' +
       '<td class="mono">' + r.tanggal + '</td>' +
       '<td>' + r.nama + '</td>' +
       '<td class="muted">' + r.bagianKerja + '</td>' +
-      '<td>' + r.jenisAbsen + '</td>' +
-      '<td class="mono">' + r.waktu + '</td>' +
+      '<td class="mono">' + (r.jamMasuk || '-') + '</td>' +
       '<td>' + (r.menitTelat === null ? '-' : (r.menitTelat === 0 ? '<span class="muted">Tepat waktu</span>' : '<b style="color:var(--red);">' + r.menitTelat + ' menit</b>')) + '</td>' +
-      '<td>' + (r.jarak !== null ? (r.jarak + ' m dari ' + r.namaLokasi) : '-') + '</td>' +
-      '<td class="mono">' + (r.akurasi != null ? ('±' + r.akurasi + ' m') : '-') + '</td>' +
-      '<td>' + (r.fotoUrl ? '<a href="' + r.fotoUrl + '" target="_blank" rel="noopener"><img class="foto-thumb" src="' + r.fotoUrl + '" alt="Foto absen ' + r.nama + '" loading="lazy"></a>' : '-') + '</td>' +
+      '<td>' + (r.jarakMasuk !== null ? (r.jarakMasuk + ' m dari ' + r.namaLokasiMasuk) : '-') + '</td>' +
+      '<td class="mono">' + (r.akurasiMasuk != null ? ('±' + r.akurasiMasuk + ' m') : '-') + '</td>' +
+      '<td>' + (r.fotoMasukUrl ? '<a href="' + r.fotoMasukUrl + '" target="_blank" rel="noopener"><img class="foto-thumb" src="' + r.fotoMasukUrl + '" alt="Foto masuk ' + r.nama + '" loading="lazy"></a>' : '-') + '</td>' +
+      '<td class="mono">' + (r.jamKeluar || '-') + '</td>' +
+      '<td>' + (r.jarakKeluar !== null ? (r.jarakKeluar + ' m dari ' + r.namaLokasiKeluar) : '-') + '</td>' +
+      '<td class="mono">' + (r.akurasiKeluar != null ? ('±' + r.akurasiKeluar + ' m') : '-') + '</td>' +
+      '<td>' + (r.fotoKeluarUrl ? '<a href="' + r.fotoKeluarUrl + '" target="_blank" rel="noopener"><img class="foto-thumb" src="' + r.fotoKeluarUrl + '" alt="Foto keluar ' + r.nama + '" loading="lazy"></a>' : '-') + '</td>' +
     '</tr>'
-  ).join('') : '<tr><td colspan="9" class="muted">Belum ada data absensi pada periode ini.</td></tr>';
+  ).join('') : '<tr><td colspan="12" class="muted">Belum ada data absensi pada periode ini.</td></tr>';
 }
 
 function statTile(num, label) {
@@ -1614,13 +1617,17 @@ document.getElementById('btn-unduh-rekap').addEventListener('click', async () =>
   setBusy(btn, false, '', 'Unduh Excel');
   if (!res.sukses) return showToast(res.pesan, false);
   let daftar = res.daftar || [];
-  if (lokasiPilihan) daftar = daftar.filter(r => r.namaLokasi === lokasiPilihan);
+  if (lokasiPilihan) daftar = daftar.filter(r => r.namaLokasiMasuk === lokasiPilihan || r.namaLokasiKeluar === lokasiPilihan);
   if (!daftar.length) return showToast('Tidak ada data absensi untuk lokasi & periode ini.', false);
 
   const rows = daftar.map(r => ({
-    Tanggal: r.tanggal, Nama: r.nama, 'Bagian Kerja': r.bagianKerja, Jenis: r.jenisAbsen,
-    Jam: r.waktu, Lokasi: r.namaLokasi, 'Jarak (m)': r.jarak != null ? r.jarak : '',
-    'Akurasi GPS (m)': r.akurasi != null ? r.akurasi : '', Foto: r.fotoUrl || '',
+    Tanggal: r.tanggal, Nama: r.nama, 'Bagian Kerja': r.bagianKerja,
+    'Jam Masuk': r.jamMasuk || '', 'Telat (menit)': r.menitTelat != null ? r.menitTelat : '',
+    'Lokasi Masuk': r.namaLokasiMasuk, 'Jarak Masuk (m)': r.jarakMasuk != null ? r.jarakMasuk : '',
+    'Akurasi GPS Masuk (m)': r.akurasiMasuk != null ? r.akurasiMasuk : '', 'Foto Masuk': r.fotoMasukUrl || '',
+    'Jam Keluar': r.jamKeluar || '',
+    'Lokasi Keluar': r.namaLokasiKeluar, 'Jarak Keluar (m)': r.jarakKeluar != null ? r.jarakKeluar : '',
+    'Akurasi GPS Keluar (m)': r.akurasiKeluar != null ? r.akurasiKeluar : '', 'Foto Keluar': r.fotoKeluarUrl || '',
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
