@@ -1960,7 +1960,15 @@ function gambarSlipGajiPdf(data) {
   const tinggiTabel = (rows) => 6 + (rows || []).length * 5 + 6;
   const tinggiTabelMax = Math.max(tinggiTabel(data.pendapatan), tinggiTabel(data.pengurangan));
   const tinggiIsi = 113.8 + jmlBarisInfo * 5 + tinggiTabelMax;
-  const doc = new jsPDF({ unit: 'mm', format: [210, tinggiIsi] });
+  // PENTING: jsPDF diam-diam MENUKAR lebar/tinggi di "format" kalau orientasi
+  // default ('portrait', wajib tinggi >= lebar) tidak cocok dengan angka yang
+  // dikirim - inilah yang bikin hasil sebelumnya kepotong lebar-nya jadi
+  // sesempit tinggiIsi (karena tinggiIsi < 210, dianggap harus ditukar jadi
+  // lebar). Deklarasikan orientation eksplisit sesuai kondisinya supaya
+  // jsPDF tidak pernah menukar urutan [lebar, tinggi] yang sudah benar ini.
+  const lebarHalaman = 210;
+  const orientasiHalaman = tinggiIsi >= lebarHalaman ? 'portrait' : 'landscape';
+  const doc = new jsPDF({ unit: 'mm', format: [lebarHalaman, tinggiIsi], orientation: orientasiHalaman });
 
   let y = 16;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
