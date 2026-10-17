@@ -343,7 +343,13 @@
      dianggap "window" miliknya) - cukup elemen biasa di akhir <body>, yang
      otomatis ketutup modal overlay (z-index:60) yang sedang terbuka di
      atasnya, jadi tidak kelihatan tanpa trik posisi yang berisiko. */
-  .slip-pdf-offscreen{width:400px; background:#fff; padding:18px;}
+  .slip-pdf-offscreen{width:680px; background:#fff; padding:24px;}
+  /* Tampilan di modal (layar HP sempit) sengaja menumpuk tabel Pendapatan/
+     Pengurangan ke bawah supaya tidak sesak. Tapi untuk hasil PDF kontainernya
+     dibuat lebih lebar (lihat .slip-pdf-offscreen di atas), jadi di sini
+     dipaksa berjejer kiri-kanan seperti template aslinya. */
+  .slip-pdf-offscreen .slip-sheet-grid2{flex-direction:row; flex-wrap:wrap;}
+  .slip-pdf-offscreen .slip-sheet-grid2 table{flex:1 1 280px;}
 
 
   .navbar{
