@@ -1482,9 +1482,21 @@ function muatLogoRayBase64() {
 }
 function gambarSlipGajiPdf(data) {
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const kiri = 16, kanan = 194, lebar = kanan - kiri;
   const NAVY = [23, 56, 92], MUTED = [124, 135, 152], TEKS = [31, 41, 55], GARIS = [227, 231, 238], SOFT = [234, 240, 246], HIJAU = [227, 242, 230];
+
+  // Tinggi halaman dihitung dulu dari isinya (bukan dipaksa 1 halaman A4
+  // penuh) - supaya tidak ada sisa kertas kosong besar di bawah slip, PDF-nya
+  // pas sesuai konten seperti template. 142 = akumulasi semua "y +=" tetap di
+  // proses gambar di bawah sampai baseline teks footer (+12 +6 +5 +9 +5 +8
+  // +26 +6 +28), ditambah tinggi visual footer di bawah baseline-nya (logo
+  // besar, ~7mm) + margin bawah kertas (10mm). Kalau urutan "y +=" di bawah
+  // berubah, angka 142 ini harus ikut disesuaikan.
+  const jmlBarisInfo = 4;
+  const tinggiTabel = (rows) => 7 + (rows || []).length * 6 + 7;
+  const tinggiTabelMax = Math.max(tinggiTabel(data.pendapatan), tinggiTabel(data.pengurangan));
+  const tinggiIsi = 142 + jmlBarisInfo * 5.5 + tinggiTabelMax;
+  const doc = new jsPDF({ unit: 'mm', format: [210, tinggiIsi] });
 
   let y = 20;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
@@ -1590,10 +1602,12 @@ function gambarSlipGajiPdf(data) {
 
   // Logo RAY (sama seperti di header aplikasi, icon-192.png) + teks branding
   // "Ray-One Payslip Generator" tebal-biru, baris kedua keterangan kontak admin.
-  const ukuranLogo = 8;
+  // Ukuran logo mengikuti tinggi blok teks dua baris di sampingnya (bukan
+  // dibuat kecil sendiri), supaya proporsinya pas.
+  const ukuranLogo = 13;
   let xTeks = kiri;
   if (data.logoRayBase64) {
-    try { doc.addImage(data.logoRayBase64, 'PNG', kiri, y - 5.5, ukuranLogo, ukuranLogo); xTeks = kiri + ukuranLogo + 3; } catch (e) {}
+    try { doc.addImage(data.logoRayBase64, 'PNG', kiri, y - 6, ukuranLogo, ukuranLogo); xTeks = kiri + ukuranLogo + 4; } catch (e) {}
   }
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
   doc.text('Slip gaji ini dibuat dengan aplikasi ', xTeks, y);
