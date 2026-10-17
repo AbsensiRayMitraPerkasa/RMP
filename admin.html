@@ -52,6 +52,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
   :root{
     --bg:#eef1f6; --card:#ffffff; --border:#e3e7ee;
@@ -545,7 +546,7 @@
                 <div class="kd-form-row" style="margin-top:16px;">
                   <button type="button" class="btn btn-primary" style="width:auto;" onclick="simpanSlipGaji()">Simpan Pengaturan</button>
                   <button type="button" class="btn btn-navy" style="width:auto;" onclick="renderSlipPreview()">Preview</button>
-                  <button type="button" class="btn btn-outline" style="width:auto;" onclick="unduhSlipGaji()">Unduh Slip Gaji</button>
+                  <button type="button" class="btn btn-outline" style="width:auto;" id="btn-unduh-slip-pdf" onclick="unduhSlipGajiPdf()">Unduh PDF</button>
                 </div>
               </div>
 
@@ -1907,9 +1908,22 @@ function renderSlipPreview() {
     '</div>' +
     '<div class="slip-sheet-footer muted">Slip gaji ini dibuat dengan Ray-One Payslip Generator</div>';
 }
-function unduhSlipGaji() {
+function unduhSlipGajiPdf() {
   renderSlipPreview();
-  setTimeout(() => window.print(), 50);
+  const karyawanTerpilih = karyawanTerpilihSlip();
+  const namaFile = 'Slip_Gaji_' + (karyawanTerpilih ? karyawanTerpilih.nama.replace(/[^a-zA-Z0-9]+/g, '_') : 'Karyawan') +
+    '_' + (document.getElementById('slip-bulan').value || 'bulan') + '.pdf';
+  const btn = document.getElementById('btn-unduh-slip-pdf');
+  setBusy(btn, true, 'Membuat PDF...', 'Unduh PDF');
+  html2pdf().set({
+    margin: 10,
+    filename: namaFile,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  }).from(document.getElementById('slip-preview-cetak')).save()
+    .then(() => setBusy(btn, false, '', 'Unduh PDF'))
+    .catch(() => { setBusy(btn, false, '', 'Unduh PDF'); showToast('Gagal membuat PDF.', false); });
 }
 
 let kodeQrAbsensi = '';
