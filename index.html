@@ -337,9 +337,13 @@
   /* Capture PDF slip gaji TIDAK dilakukan langsung dari elemen yang tampil di
      modal (leluhurnya position:fixed + overflow-y:auto bikin html2canvas
      salah hitung ukuran/posisi, sudah terbukti 2x gagal walau sudah dilepas
-     sementara). Isinya disalin ke kontainer biasa di luar layar ini dulu -
-     tanpa leluhur fixed/sticky/overflow apapun - baru itu yang di-capture. */
-  .slip-pdf-offscreen{position:fixed; left:-9999px; top:0; width:400px; background:#fff; padding:18px;}
+     sementara). Isinya disalin ke kontainer biasa ini dulu - sengaja TIDAK
+     diberi position:fixed/absolute dengan offset negatif (html2canvas malah
+     bisa menghasilkan canvas kosong/putih kalau elemennya di luar area yang
+     dianggap "window" miliknya) - cukup elemen biasa di akhir <body>, yang
+     otomatis ketutup modal overlay (z-index:60) yang sedang terbuka di
+     atasnya, jadi tidak kelihatan tanpa trik posisi yang berisiko. */
+  .slip-pdf-offscreen{width:400px; background:#fff; padding:18px;}
 
 
   .navbar{
