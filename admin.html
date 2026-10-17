@@ -473,7 +473,7 @@
         <div data-sub-panel="slipgaji" id="sub-slipgaji" class="hidden">
           <div class="panel">
             <div class="section-title">Slip Gaji Generator</div>
-            <p class="muted" style="font-size:13px; margin-top:-6px;">Isi data di bawah, klik Preview untuk melihat hasilnya, lalu Unduh untuk mencetak/simpan sebagai PDF. Belum tersimpan ke sistem — murni alat bantu buat slip.</p>
+            <p class="muted" style="font-size:13px; margin-top:-6px;">Rincian Pendapatan/Pengurangan tersimpan sebagai template per kombinasi Jabatan+Departemen (lihat daftar di bawah) - ganti Jabatan/Departemen untuk otomatis memuat template yang sudah ada. Pilih Nama Karyawan untuk mengisi nama &amp; ID karyawan di hasil slip, lalu klik Preview untuk melihat hasilnya dan Unduh untuk mencetak/simpan sebagai PDF.</p>
             <div class="slip-cols">
               <div class="slip-col">
                 <label>Logo Perusahaan (opsional)</label>
@@ -499,7 +499,7 @@
                 <input type="text" id="slip-id-karyawan" disabled>
 
                 <label>Jabatan</label>
-                <select id="slip-jabatan">
+                <select id="slip-jabatan" onchange="muatTemplateSlipGaji()">
                   <option value="Komandan Peleton (Danton)">Komandan Peleton (Danton)</option>
                   <option value="Wakil Komandan Peleton (Wadanton)">Wakil Komandan Peleton (Wadanton)</option>
                   <option value="Komandan Regu (Danru)">Komandan Regu (Danru)</option>
@@ -507,7 +507,7 @@
                 </select>
 
                 <label>Departemen</label>
-                <select id="slip-departemen">
+                <select id="slip-departemen" onchange="muatTemplateSlipGaji()">
                   <option value="Keamanan" selected>Keamanan</option>
                   <option value="Kebersihan">Kebersihan</option>
                   <option value="Administrasi">Administrasi</option>
@@ -558,11 +558,11 @@
           </div>
           <div class="panel">
             <div class="section-title">Pengaturan Slip Gaji Tersimpan</div>
-            <p class="muted" style="font-size:13px; margin-top:-6px;">Pengaturan per karyawan (jabatan, departemen, rincian penghasilan) yang sudah pernah disimpan. Klik Edit untuk memuatnya kembali ke form di atas.</p>
+            <p class="muted" style="font-size:13px; margin-top:-6px;">Template per kombinasi Jabatan+Departemen yang sudah pernah disimpan. Klik Edit untuk memuatnya kembali ke form di atas.</p>
             <div class="table-scroll">
               <table>
-                <thead><tr><th>Nama Karyawan</th><th>ID Karyawan</th><th>Jabatan</th><th>Departemen</th><th>Terakhir Diubah</th><th></th></tr></thead>
-                <tbody id="slip-daftar-tersimpan"><tr><td colspan="6" class="muted">Belum ada pengaturan tersimpan.</td></tr></tbody>
+                <thead><tr><th>Jabatan</th><th>Departemen</th><th>Terakhir Diubah</th><th></th></tr></thead>
+                <tbody id="slip-daftar-tersimpan"><tr><td colspan="4" class="muted">Belum ada pengaturan tersimpan.</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -1135,15 +1135,27 @@ async function muatPersetujuan() {
   renderIjin(resIjin.daftar || []);
 }
 
+// Pilihan Jabatan saat Setujui pendaftaran khusus klien yang pakai fitur Slip
+// Gaji (lihat KLIEN_SLIP_GAJI_DIIZINKAN) - kalau dibiarkan kosong, default
+// "Anggota" (lihat prosesPendaftaran & backend setujuiPendaftaran).
 function renderPendaftaran(list) {
   const box = document.getElementById('sub-pendaftaran');
   if (!list.length) { box.innerHTML = '<div class="empty-state"><div class="big">✅</div>Tidak ada pendaftaran menunggu persetujuan.</div>'; return; }
+  const pakaiJabatan = KLIEN_SLIP_GAJI_DIIZINKAN.includes(KODE_KLIEN);
   box.innerHTML = list.map(d =>
     '<div class="approval-item">' +
       '<div class="row"><span class="k">Nama</span><span>'+d.nama+'</span></div>' +
       '<div class="row"><span class="k">Bagian Kerja</span><span>'+d.bagianKerja+'</span></div>' +
       '<div class="row"><span class="k">PIN</span><span class="mono">'+d.pin+'</span></div>' +
       '<div class="row"><span class="k">Tanggal Daftar</span><span class="mono">'+d.tanggalDaftar+'</span></div>' +
+      (pakaiJabatan ?
+        '<div class="row"><span class="k">Jabatan</span><select id="jabatan-pendaftaran-'+d.id+'">' +
+          '<option value="">(kosongkan = Anggota)</option>' +
+          '<option value="Komandan Peleton (Danton)">Komandan Peleton (Danton)</option>' +
+          '<option value="Wakil Komandan Peleton (Wadanton)">Wakil Komandan Peleton (Wadanton)</option>' +
+          '<option value="Komandan Regu (Danru)">Komandan Regu (Danru)</option>' +
+          '<option value="Anggota">Anggota</option>' +
+        '</select></div>' : '') +
       '<div class="actions">' +
         '<button class="btn btn-green btn-sm" onclick="prosesPendaftaran(\''+d.id+'\',true)">Setujui</button>' +
         '<button class="btn btn-danger btn-sm" onclick="prosesPendaftaran(\''+d.id+'\',false)">Tolak</button>' +
@@ -1169,7 +1181,12 @@ function renderIjin(list) {
   ).join('');
 }
 async function prosesPendaftaran(id, setujui) {
-  const res = await api(setujui ? 'setujuiPendaftaran' : 'tolakPendaftaran', { password: adminPassword, id });
+  const payload = { password: adminPassword, id };
+  if (setujui) {
+    const elJabatan = document.getElementById('jabatan-pendaftaran-' + id);
+    if (elJabatan) payload.jabatan = elJabatan.value;
+  }
+  const res = await api(setujui ? 'setujuiPendaftaran' : 'tolakPendaftaran', payload);
   showToast(res.pesan, res.sukses);
   if (res.sukses) muatPersetujuan();
 }
@@ -1723,45 +1740,50 @@ function pilihSlipKaryawan() {
 async function muatDaftarSlipGajiTersimpan() {
   const tbody = document.getElementById('slip-daftar-tersimpan');
   const res = await api('getDaftarSlipGajiAdmin', { password: adminPassword });
-  if (!res.sukses) { tbody.innerHTML = '<tr><td colspan="6" class="muted">' + res.pesan + '</td></tr>'; return; }
+  if (!res.sukses) { tbody.innerHTML = '<tr><td colspan="4" class="muted">' + res.pesan + '</td></tr>'; return; }
   slipDaftarTersimpan = res.daftar || [];
   tbody.innerHTML = slipDaftarTersimpan.length
     ? slipDaftarTersimpan.map(d =>
         '<tr>' +
-          '<td>' + escHtmlSlip(d.namaKaryawan || '-') + '</td>' +
-          '<td class="mono">' + escHtmlSlip(d.idKaryawan || '-') + '</td>' +
           '<td>' + escHtmlSlip(d.jabatan || '-') + '</td>' +
           '<td>' + escHtmlSlip(d.departemen || '-') + '</td>' +
           '<td>' + (d.diubahPada ? new Date(d.diubahPada).toLocaleString('id-ID') : '-') + '</td>' +
           '<td class="action-cell"><button class="btn btn-outline btn-sm" onclick="editSlipGaji(\'' + d.id + '\')">Edit</button></td>' +
         '</tr>'
       ).join('')
-    : '<tr><td colspan="6" class="muted">Belum ada pengaturan tersimpan.</td></tr>';
+    : '<tr><td colspan="4" class="muted">Belum ada pengaturan tersimpan.</td></tr>';
+}
+
+// Dipanggil tiap Jabatan/Departemen di form berubah - otomatis muat template
+// tersimpan untuk kombinasi itu kalau sudah ada (tanpa klik Edit manual).
+function muatTemplateSlipGaji() {
+  const jabatan = document.getElementById('slip-jabatan').value;
+  const departemen = document.getElementById('slip-departemen').value;
+  const d = slipDaftarTersimpan.find(x => x.jabatan === jabatan && x.departemen === departemen);
+  terapkanTemplateSlipGaji(d || null);
+}
+function terapkanTemplateSlipGaji(d) {
+  document.getElementById('slip-catatan').value = d ? (d.catatan || '') : '';
+  document.getElementById('slip-disetujui-nama').value = (d && d.disetujuiNama) || 'Bayu Brawarso';
+  document.getElementById('slip-disetujui-jabatan').value = (d && d.disetujuiJabatan) || 'HR Manager';
+  slipPendapatan = (d && d.pendapatan && d.pendapatan.length) ? d.pendapatan : [{ nama: 'Gaji pokok', jumlah: 0 }, { nama: 'Uang Makan', jumlah: 0 }];
+  slipPengurangan = (d && d.pengurangan && d.pengurangan.length) ? d.pengurangan : [{ nama: 'PPH 21', jumlah: 0 }, { nama: 'BPJS Kesehatan', jumlah: 0 }];
+  renderSlipItemRows();
 }
 
 function editSlipGaji(id) {
   const d = slipDaftarTersimpan.find(x => x.id === id);
   if (!d) return;
-  document.getElementById('slip-nama-karyawan').value = d.karyawanId;
-  pilihSlipKaryawan();
   document.getElementById('slip-jabatan').value = d.jabatan || 'Anggota';
   document.getElementById('slip-departemen').value = d.departemen || 'Keamanan';
-  document.getElementById('slip-catatan').value = d.catatan || '';
-  document.getElementById('slip-disetujui-nama').value = d.disetujuiNama || 'Bayu Brawarso';
-  document.getElementById('slip-disetujui-jabatan').value = d.disetujuiJabatan || 'HR Manager';
-  slipPendapatan = (d.pendapatan && d.pendapatan.length) ? d.pendapatan : [{ nama: 'Gaji pokok', jumlah: 0 }, { nama: 'Uang Makan', jumlah: 0 }];
-  slipPengurangan = (d.pengurangan && d.pengurangan.length) ? d.pengurangan : [{ nama: 'PPH 21', jumlah: 0 }, { nama: 'BPJS Kesehatan', jumlah: 0 }];
-  renderSlipItemRows();
-  showToast('Pengaturan "' + (d.namaKaryawan || '') + '" dimuat ke form.', true);
-  document.getElementById('slip-nama-karyawan').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  terapkanTemplateSlipGaji(d);
+  showToast('Template "' + (d.jabatan || '') + ' - ' + (d.departemen || '') + '" dimuat ke form.', true);
+  document.getElementById('slip-jabatan').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function simpanSlipGaji() {
-  const k = karyawanTerpilihSlip();
-  if (!k) return showToast('Pilih karyawan terlebih dahulu.', false);
   const res = await api('simpanSlipGajiAdmin', {
     password: adminPassword,
-    karyawanId: k.id,
     jabatan: document.getElementById('slip-jabatan').value,
     departemen: document.getElementById('slip-departemen').value,
     pendapatan: slipPendapatan,
