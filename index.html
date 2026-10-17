@@ -1486,19 +1486,21 @@ function gambarSlipGajiPdf(data) {
   const NAVY = [23, 56, 92], MUTED = [124, 135, 152], TEKS = [31, 41, 55], GARIS = [227, 231, 238], SOFT = [234, 240, 246], HIJAU = [227, 242, 230];
 
   // Tinggi halaman dihitung dulu dari isinya (bukan dipaksa 1 halaman A4
-  // penuh) - supaya tidak ada sisa kertas kosong besar di bawah slip, PDF-nya
-  // pas sesuai konten seperti template. 142 = akumulasi semua "y +=" tetap di
-  // proses gambar di bawah sampai baseline teks footer (+12 +6 +5 +9 +5 +8
-  // +26 +6 +28), ditambah tinggi visual footer di bawah baseline-nya (logo
-  // besar, ~7mm) + margin bawah kertas (10mm). Kalau urutan "y +=" di bawah
-  // berubah, angka 142 ini harus ikut disesuaikan.
+  // penuh/297mm) - supaya tidak ada sisa kertas kosong di bawah, dan jarak
+  // antar bagian dipadatkan (termasuk celah Rincian karyawan -> Rincian
+  // penghasilan yang tadinya kebesaran) supaya hasilnya mendekati setengah
+  // halaman A4. 113.8 = akumulasi semua "y +=" tetap di proses gambar sampai
+  // baseline teks footer, ditambah tinggi visual footer di bawah baseline
+  // (logo, ~6.8mm) + margin bawah kertas (8mm). Kalau urutan "y +=" di bawah
+  // berubah, angka ini harus ikut disesuaikan (lihat perhitungan simulasi
+  // yang dipakai untuk menurunkan angka ini, jangan tebak manual).
   const jmlBarisInfo = 4;
-  const tinggiTabel = (rows) => 7 + (rows || []).length * 6 + 7;
+  const tinggiTabel = (rows) => 6 + (rows || []).length * 5 + 6;
   const tinggiTabelMax = Math.max(tinggiTabel(data.pendapatan), tinggiTabel(data.pengurangan));
-  const tinggiIsi = 142 + jmlBarisInfo * 5.5 + tinggiTabelMax;
+  const tinggiIsi = 113.8 + jmlBarisInfo * 5 + tinggiTabelMax;
   const doc = new jsPDF({ unit: 'mm', format: [210, tinggiIsi] });
 
-  let y = 20;
+  let y = 16;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
   doc.text(data.namaPerusahaan || '-', kiri, y);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
@@ -1506,13 +1508,13 @@ function gambarSlipGajiPdf(data) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
   doc.text(data.bulanText || '-', kanan, y + 2, { align: 'right' });
 
-  y += 12;
+  y += 10;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
   doc.text('Rincian karyawan', kiri, y);
-  y += 6;
+  y += 5;
 
   const infoKiri = [['Nama karyawan', data.namaKaryawan], ['ID karyawan', data.idKaryawan], ['Jabatan', data.jabatan], ['Departemen', data.departemen]];
-  const tinggiBaris = 5.5;
+  const tinggiBaris = 5;
   infoKiri.forEach((it, i) => {
     const ry = y + i * tinggiBaris;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
@@ -1521,40 +1523,40 @@ function gambarSlipGajiPdf(data) {
     doc.setFont('helvetica', 'bold'); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
     doc.text(String(it[1] || '-'), kiri + 36, ry);
   });
-  y += infoKiri.length * tinggiBaris + 5;
+  y += infoKiri.length * tinggiBaris + 4;
 
   doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]); doc.setLineWidth(0.2);
   doc.line(kiri, y, kanan, y);
-  y += 9;
+  y += 6;
 
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
   doc.text('Rincian penghasilan', kiri, y);
-  y += 5;
+  y += 4;
 
   const lebarTabel = (lebar - 8) / 2;
   const kolom1X = kiri, kolom2X = kiri + lebarTabel + 8;
-  const tinggiHeader = 7, tinggiItem = 6, tinggiTotal = 7;
+  const tinggiHeader = 6, tinggiItem = 5, tinggiTotal = 6;
 
   const gambarTabel = (x, label, rows, total) => {
     let ty = y;
     doc.setFillColor(SOFT[0], SOFT[1], SOFT[2]);
     doc.rect(x, ty, lebarTabel, tinggiHeader, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
-    doc.text(label, x + 2, ty + 5);
-    doc.text('Jumlah', x + lebarTabel - 2, ty + 5, { align: 'right' });
+    doc.text(label, x + 2, ty + 4.3);
+    doc.text('Jumlah', x + lebarTabel - 2, ty + 4.3, { align: 'right' });
     ty += tinggiHeader;
     rows.forEach((it) => {
       doc.setFont('helvetica', 'normal'); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
-      doc.text(String(it.nama || '-'), x + 2, ty + 4.3);
-      doc.text(formatRpSlip(it.jumlah), x + lebarTabel - 2, ty + 4.3, { align: 'right' });
+      doc.text(String(it.nama || '-'), x + 2, ty + 3.7);
+      doc.text(formatRpSlip(it.jumlah), x + lebarTabel - 2, ty + 3.7, { align: 'right' });
       doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]); doc.line(x, ty + tinggiItem, x + lebarTabel, ty + tinggiItem);
       ty += tinggiItem;
     });
     doc.setFillColor(SOFT[0], SOFT[1], SOFT[2]);
     doc.rect(x, ty, lebarTabel, tinggiTotal, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.text('Total ' + label.toLowerCase(), x + 2, ty + 5);
-    doc.text(formatRpSlip(total), x + lebarTabel - 2, ty + 5, { align: 'right' });
+    doc.text('Total ' + label.toLowerCase(), x + 2, ty + 4.3);
+    doc.text(formatRpSlip(total), x + lebarTabel - 2, ty + 4.3, { align: 'right' });
     ty += tinggiTotal;
     return ty;
   };
@@ -1563,21 +1565,21 @@ function gambarSlipGajiPdf(data) {
   const totalPengurangan = (data.pengurangan || []).reduce((s, it) => s + (it.jumlah || 0), 0);
   const akhir1 = gambarTabel(kolom1X, 'Pendapatan', data.pendapatan || [], totalPendapatan);
   const akhir2 = gambarTabel(kolom2X, 'Pengurangan', data.pengurangan || [], totalPengurangan);
-  y = Math.max(akhir1, akhir2) + 8;
+  y = Math.max(akhir1, akhir2) + 6;
 
   const thp = totalPendapatan - totalPengurangan;
-  const tinggiThp = 16, lebarThp = 48;
+  const tinggiThp = 13, lebarThp = 46;
   doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]);
   doc.rect(kiri, y, lebar, tinggiThp, 'S');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
-  doc.text('Take Home Pay', kiri + 4, y + 7);
+  doc.text('Take Home Pay', kiri + 4, y + 5.5);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-  doc.text('Total pendapatan - Total pengurangan', kiri + 4, y + 12);
+  doc.text('Total pendapatan - Total pengurangan', kiri + 4, y + 10);
   doc.setFillColor(HIJAU[0], HIJAU[1], HIJAU[2]);
   doc.rect(kanan - lebarThp, y, lebarThp, tinggiThp, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
-  doc.text(formatRpSlip(thp), kanan - 4, y + 10, { align: 'right' });
-  y += tinggiThp + 10;
+  doc.text(formatRpSlip(thp), kanan - 4, y + 8, { align: 'right' });
+  y += tinggiThp + 8;
 
   const kolC = kiri, kolD = kiri + 62, kolE = kiri + 124;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
@@ -1586,28 +1588,29 @@ function gambarSlipGajiPdf(data) {
   doc.text('Diterima oleh:', kolE, y);
   if (data.catatan) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
-    doc.text(doc.splitTextToSize(data.catatan, 55), kolC, y + 6);
+    doc.text(doc.splitTextToSize(data.catatan, 55), kolC, y + 5);
   }
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
-  doc.text(data.disetujuiNama || '-', kolD, y + 16);
-  doc.text(data.namaKaryawan || '-', kolE, y + 16);
+  doc.text(data.disetujuiNama || '-', kolD, y + 12.5);
+  doc.text(data.namaKaryawan || '-', kolE, y + 12.5);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-  doc.text(data.disetujuiJabatan || '', kolD, y + 20.5);
-  doc.text(data.jabatan || '', kolE, y + 20.5);
-  y += 28;
+  doc.text(data.disetujuiJabatan || '', kolD, y + 17);
+  doc.text(data.jabatan || '', kolE, y + 17);
+  y += 22;
 
   doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]);
   doc.line(kiri, y, kanan, y);
-  y += 6;
+  y += 5;
 
   // Logo RAY (sama seperti di header aplikasi, icon-192.png) + teks branding
-  // "Ray-One Payslip Generator" tebal-biru, baris kedua keterangan kontak admin.
-  // Ukuran logo mengikuti tinggi blok teks dua baris di sampingnya (bukan
-  // dibuat kecil sendiri), supaya proporsinya pas.
-  const ukuranLogo = 13;
+  // "Ray-One Payslip Generator" tebal-biru, baris kedua keterangan kontak
+  // admin. Logo diposisikan supaya pusat vertikalnya sejajar dengan pusat
+  // vertikal blok teks 2 baris di sampingnya (baseline baris 1 = y, baseline
+  // baris 2 = y+4 -> pusat teks sekitar y+1.3), bukan sekadar nempel di atas.
+  const ukuranLogo = 11;
   let xTeks = kiri;
   if (data.logoRayBase64) {
-    try { doc.addImage(data.logoRayBase64, 'PNG', kiri, y - 6, ukuranLogo, ukuranLogo); xTeks = kiri + ukuranLogo + 4; } catch (e) {}
+    try { doc.addImage(data.logoRayBase64, 'PNG', kiri, y - 4.2, ukuranLogo, ukuranLogo); xTeks = kiri + ukuranLogo + 4; } catch (e) {}
   }
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
   doc.text('Slip gaji ini dibuat dengan aplikasi ', xTeks, y);
@@ -1615,7 +1618,7 @@ function gambarSlipGajiPdf(data) {
   doc.setFont('helvetica', 'bold'); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
   doc.text('Ray-One Payslip Generator', xTeks + lebarAwalFooter, y);
   doc.setFont('helvetica', 'normal'); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-  doc.text('Jika terjadi kesalahan nominal bisa menghubungi Admin', xTeks, y + 4.5);
+  doc.text('Jika terjadi kesalahan nominal bisa menghubungi Admin', xTeks, y + 4);
 
   return doc;
 }
