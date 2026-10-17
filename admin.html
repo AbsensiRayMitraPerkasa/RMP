@@ -1207,11 +1207,15 @@ const ENTITAS_KELOLA = {
       { key: 'noHp', label: 'No HP (opsional)', type: 'text' },
       { key: 'alamat', label: 'Alamat (opsional)', type: 'text' },
       { key: 'bagianKerja', label: 'Bagian Kerja', type: 'select', options: ['Security','Cleaning Service','Administrasi','Pengemudi','Tenaga Lapangan','Tenaga Produksi','Tenaga Operator','Lainnya'] },
-      // Jabatan (Danton/Wadanton/Danru/Anggota) khusus klien yang pakai fitur
-      // Slip Gaji (lihat KLIEN_SLIP_GAJI_DIIZINKAN) - admin yang menentukan
-      // jabatan tiap karyawan di sini, bisa diubah kapan saja (tidak cuma
-      // saat Setujui pendaftaran).
-      ...(KLIEN_SLIP_GAJI_DIIZINKAN.includes(KODE_KLIEN) ? [{ key: 'jabatan', label: 'Jabatan', type: 'select', options: ['Komandan Peleton (Danton)', 'Wakil Komandan Peleton (Wadanton)', 'Komandan Regu (Danru)', 'Anggota'] }] : []),
+      // Jabatan & Departemen khusus klien yang pakai fitur Slip Gaji (lihat
+      // KLIEN_SLIP_GAJI_DIIZINKAN) - admin yang menentukan di sini, bisa
+      // diubah kapan saja (Jabatan tidak cuma saat Setujui pendaftaran).
+      // Keduanya dipakai karyawan sendiri untuk melihat slip gajinya lewat
+      // index.html (cocokkan ke template Pengaturan Slip Gaji yang sesuai).
+      ...(KLIEN_SLIP_GAJI_DIIZINKAN.includes(KODE_KLIEN) ? [
+        { key: 'jabatan', label: 'Jabatan', type: 'select', options: ['Komandan Peleton (Danton)', 'Wakil Komandan Peleton (Wadanton)', 'Komandan Regu (Danru)', 'Anggota'] },
+        { key: 'departemen', label: 'Departemen', type: 'select', options: ['Keamanan', 'Kebersihan', 'Administrasi', 'Pengemudi'] }
+      ] : []),
       { key: 'pin', label: 'PIN (4 digit)', type: 'text' }
     ]
   },

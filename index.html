@@ -184,6 +184,29 @@
   .row-btn .row-chev{color:var(--muted); display:flex; flex-shrink:0;}
   .row-btn .row-chev svg{width:16px; height:16px;}
 
+  .card-slipgaji{background:var(--navy-soft);}
+  .card-slipgaji .row-btn .row-ic{background:#fff;}
+
+  .slip-sheet-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; border-bottom:1px solid var(--border); padding-bottom:14px; margin-bottom:14px;}
+  .slip-sheet-nama-pt{font-weight:700; color:var(--navy);}
+  .slip-sheet-bulan{font-weight:700; color:var(--navy); font-size:16px;}
+  .slip-sheet-section-title{font-weight:700; color:var(--navy); font-size:13.5px; margin:16px 0 8px;}
+  .slip-sheet-grid2{display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; margin-bottom:6px;}
+  .slip-sheet-grid2>div{display:flex; justify-content:space-between; gap:8px; font-size:13px; padding:3px 0;}
+  .slip-sheet-grid2>div>span:first-child{color:var(--muted);}
+  .slip-sheet-grid2 table{font-size:13px;}
+  .slip-sheet-grid2 table th,.slip-sheet-grid2 table td{padding:6px 4px; border-bottom:1px solid var(--border); text-align:left;}
+  .slip-sheet-grid2 table th.num,.slip-sheet-grid2 table td.num{text-align:right;}
+  .slip-total-row td{font-weight:700;}
+  .slip-sheet-thp{display:flex; justify-content:space-between; align-items:center; background:var(--navy-soft); border-radius:var(--radius-sm); padding:12px 14px; margin:16px 0;}
+  .slip-sheet-thp-label{font-weight:700; color:var(--navy);}
+  .slip-sheet-thp-value{font-weight:700; font-size:18px; color:var(--navy);}
+  .slip-sheet-ttd{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:22px;}
+  .slip-sheet-ttd-space{height:40px;}
+  .slip-sheet-ttd-nama{font-weight:700;}
+  .slip-sheet-footer{margin-top:18px; padding-top:10px; border-top:1px solid var(--border); font-size:11.5px; text-align:center;}
+  @media (max-width:420px){ .slip-sheet-grid2{grid-template-columns:1fr;} .slip-sheet-ttd{grid-template-columns:1fr;} }
+
    
   .id-row{display:flex; align-items:center; gap:10px;}
   .avatar-wrap{position:relative; flex-shrink:0;}
@@ -495,6 +518,14 @@
     <button class="btn btn-outline hidden" id="btn-goto-kegiatan">🧹 Laporan Kegiatan</button>
   </div>
 
+  <div class="card card-slipgaji hidden" id="card-slipgaji">
+    <button class="row-btn" id="btn-slipgaji" type="button">
+      <span class="row-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><line x1="7" y1="9" x2="17" y2="9"></line><line x1="7" y1="13" x2="13" y2="13"></line><line x1="7" y1="17" x2="11" y2="17"></line></svg></span>
+      <span class="row-txt"><b>Slip Gaji</b><small>Lihat slip gaji Anda bulan ini</small></span>
+      <span class="row-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+    </button>
+  </div>
+
   <div class="card">
     <button class="row-btn" id="btn-riwayat" type="button">
       <span class="row-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>
@@ -529,6 +560,14 @@
     <h3>🕓 Riwayat Absensi — 7 Hari Terakhir</h3>
     <div id="home-riwayat"><div class="empty-state">Memuat...</div></div>
     <button class="btn btn-outline" id="btn-tutup-riwayat">Tutup</button>
+  </div>
+</div>
+
+<div id="modal-slipgaji" class="modal-overlay hidden">
+  <div class="modal-sheet">
+    <h3>💰 Slip Gaji</h3>
+    <div id="home-slipgaji"><div class="empty-state">Memuat...</div></div>
+    <button class="btn btn-outline" id="btn-tutup-slipgaji">Tutup</button>
   </div>
 </div>
 
@@ -665,6 +704,13 @@
 const API_URL = 'https://rxmjsvzkciwgpdatgqkd.supabase.co/functions/v1/api';
 const LOGO_URL = 'icon-192.png'; 
 const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
+// Menu "Slip Gaji" (lihat #card-slipgaji & btn-slipgaji) baru dipakai klien
+// SOEROJO HOSPITAL - sama dengan admin.html.
+const KLIEN_SLIP_GAJI_DIIZINKAN = ['soerojo-hospital'];
+let logoKlienAktif = '';
+if (KLIEN_SLIP_GAJI_DIIZINKAN.includes(KODE_KLIEN)) {
+  document.getElementById('card-slipgaji').classList.remove('hidden');
+}
 
 // Ikon PWA yang sudah diinstal membuka halaman tanpa query string (?klien=...).
 // Simpan link lengkap saat dibuka normal, lalu redirect otomatis ke link itu
@@ -815,6 +861,7 @@ async function muatInfoSistem() {
   if (elLogin) elLogin.textContent = nama;
   if (elHome) elHome.textContent = nama;
   if (res.logoUrl) {
+    logoKlienAktif = res.logoUrl;
     document.querySelectorAll('.logo').forEach(el => { el.innerHTML = '<img src="' + res.logoUrl + '" alt="logo">'; });
   }
 }
@@ -1330,6 +1377,67 @@ document.getElementById('btn-riwayat').addEventListener('click', () => {
 });
 document.getElementById('btn-tutup-riwayat').addEventListener('click', () => {
   document.getElementById('modal-riwayat').classList.add('hidden');
+});
+
+function escHtmlSlip(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function formatRpSlip(n) { return 'Rp' + (n || 0).toLocaleString('id-ID'); }
+const SLIP_NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+async function muatSlipGajiInline() {
+  const box = document.getElementById('home-slipgaji');
+  box.innerHTML = '<div class="empty-state">Memuat...</div>';
+  const res = await api('ambilSlipGajiSaya', { nama: sesi.nama, pin: sesi.pin });
+  if (!res.sukses) { box.innerHTML = '<div class="empty-state">' + escHtmlSlip(res.pesan) + '</div>'; return; }
+
+  const baris = (arr) => (arr || []).map(it => '<tr><td>' + escHtmlSlip(it.nama || '-') + '</td><td class="num">' + formatRpSlip(it.jumlah) + '</td></tr>').join('');
+  const totalPendapatan = (res.pendapatan || []).reduce((s, it) => s + (it.jumlah || 0), 0);
+  const totalPengurangan = (res.pengurangan || []).reduce((s, it) => s + (it.jumlah || 0), 0);
+  const thp = totalPendapatan - totalPengurangan;
+
+  box.innerHTML =
+    '<div class="slip-sheet-head">' +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        (logoKlienAktif ? '<img src="' + logoKlienAktif + '" alt="Logo" style="width:36px; height:36px; object-fit:contain; border-radius:6px;">' : '') +
+        '<div class="slip-sheet-nama-pt">PT. Ray Mitra Perkasa - Soerojo Hospital</div>' +
+      '</div>' +
+      '<div style="text-align:right;">' +
+        '<div class="muted" style="font-size:11px;">Slip gaji untuk bulan</div>' +
+        '<div class="slip-sheet-bulan">' + SLIP_NAMA_BULAN[res.bulan - 1] + ' ' + res.tahun + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="slip-sheet-section-title">Rincian karyawan</div>' +
+    '<div class="slip-sheet-grid2">' +
+      '<div><span>Nama</span><span>' + escHtmlSlip(res.nama) + '</span></div>' +
+      '<div><span>ID Karyawan</span><span>' + escHtmlSlip(res.idKaryawan) + '</span></div>' +
+      '<div><span>Jabatan</span><span>' + escHtmlSlip(res.jabatan) + '</span></div>' +
+      '<div><span>Departemen</span><span>' + escHtmlSlip(res.departemen) + '</span></div>' +
+    '</div>' +
+    '<div class="slip-sheet-section-title">Rincian penghasilan</div>' +
+    '<div class="slip-sheet-grid2">' +
+      '<table><thead><tr><th>Pendapatan</th><th class="num">Jumlah</th></tr></thead><tbody>' + baris(res.pendapatan) +
+        '<tr class="slip-total-row"><td>Total pendapatan</td><td class="num">' + formatRpSlip(totalPendapatan) + '</td></tr>' +
+      '</tbody></table>' +
+      '<table><thead><tr><th>Pengurangan</th><th class="num">Jumlah</th></tr></thead><tbody>' + baris(res.pengurangan) +
+        '<tr class="slip-total-row"><td>Total pengurangan</td><td class="num">' + formatRpSlip(totalPengurangan) + '</td></tr>' +
+      '</tbody></table>' +
+    '</div>' +
+    '<div class="slip-sheet-thp">' +
+      '<div><div class="slip-sheet-thp-label">Take Home Pay</div><div class="muted" style="font-size:11.5px;">Total pendapatan - Total pengurangan</div></div>' +
+      '<div class="slip-sheet-thp-value">' + formatRpSlip(thp) + '</div>' +
+    '</div>' +
+    (res.catatan ? '<div class="slip-sheet-section-title">Catatan</div><div style="font-size:13px;">' + escHtmlSlip(res.catatan) + '</div>' : '') +
+    '<div class="slip-sheet-ttd">' +
+      '<div><div class="muted" style="font-size:11.5px;">Disetujui oleh:</div><div class="slip-sheet-ttd-space"></div><div class="slip-sheet-ttd-nama">' + escHtmlSlip(res.disetujuiNama || '-') + '</div><div class="muted" style="font-size:11.5px;">' + escHtmlSlip(res.disetujuiJabatan || '') + '</div></div>' +
+      '<div><div class="muted" style="font-size:11.5px;">Diterima oleh:</div><div class="slip-sheet-ttd-space"></div><div class="slip-sheet-ttd-nama">' + escHtmlSlip(res.nama) + '</div><div class="muted" style="font-size:11.5px;">' + escHtmlSlip(res.jabatan) + '</div></div>' +
+    '</div>' +
+    '<div class="slip-sheet-footer muted">Rincian ini mengikuti pengaturan terbaru dari admin, bukan arsip tercetak.</div>';
+}
+document.getElementById('btn-slipgaji').addEventListener('click', () => {
+  document.getElementById('modal-slipgaji').classList.remove('hidden');
+  muatSlipGajiInline();
+});
+document.getElementById('btn-tutup-slipgaji').addEventListener('click', () => {
+  document.getElementById('modal-slipgaji').classList.add('hidden');
 });
 
 let presensiJenis = null, presensiFotoB64 = null;
