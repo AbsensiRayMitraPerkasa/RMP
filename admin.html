@@ -212,6 +212,44 @@
   }
   .qr-modal-inner{background:var(--card); border-radius:var(--radius); padding:22px; max-width:320px; width:100%; text-align:center; box-shadow:var(--shadow);}
   #qr-canvas-box,#qrweb-box{display:flex; justify-content:center; padding:10px; background:#fff; border-radius:var(--radius-sm);}
+
+
+  .slip-cols{display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;}
+  .slip-col{flex:1 1 380px; min-width:300px;}
+  .slip-income-cols{display:flex; gap:12px; flex-wrap:wrap;}
+  .slip-income-cols>div{flex:1 1 220px; min-width:200px;}
+  .slip-item-row{display:flex; gap:6px; margin-bottom:6px;}
+  .slip-item-row input{margin:0;}
+  .slip-item-row input:first-child{flex:1 1 55%;}
+  .slip-item-row input:nth-child(2){flex:1 1 40%;}
+  .slip-preview{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); position:sticky; top:16px;}
+  .slip-sheet-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; border-bottom:1px solid var(--border); padding-bottom:14px; margin-bottom:14px;}
+  .slip-sheet-brand{display:flex; align-items:center; gap:10px;}
+  .slip-sheet-brand img{width:40px; height:40px; object-fit:contain; border-radius:6px;}
+  .slip-sheet-nama-pt{font-weight:700; color:var(--navy);}
+  .slip-sheet-bulan{font-weight:700; color:var(--navy); font-size:16px;}
+  .slip-sheet-section-title{font-weight:700; color:var(--navy); font-size:13.5px; margin:16px 0 8px;}
+  .slip-sheet-grid2{display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; margin-bottom:6px;}
+  .slip-sheet-grid2 table{grid-column:span 1;}
+  .slip-sheet-grid2>div{display:flex; justify-content:space-between; gap:8px; font-size:13px; padding:3px 0;}
+  .slip-sheet-grid2>div>span:first-child{color:var(--muted);}
+  .slip-sheet-grid2 table{font-size:13px;}
+  .slip-sheet-grid2 table th,.slip-sheet-grid2 table td{padding:6px 4px; border-bottom:1px solid var(--border); text-align:left;}
+  .slip-sheet-grid2 table th.num,.slip-sheet-grid2 table td.num{text-align:right;}
+  .slip-total-row td{font-weight:700;}
+  .slip-sheet-thp{display:flex; justify-content:space-between; align-items:center; background:var(--navy-soft); border-radius:var(--radius-sm); padding:12px 14px; margin:16px 0;}
+  .slip-sheet-thp-label{font-weight:700; color:var(--navy);}
+  .slip-sheet-thp-value{font-weight:700; font-size:18px; color:var(--navy);}
+  .slip-sheet-ttd{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:22px;}
+  .slip-sheet-ttd-space{height:40px;}
+  .slip-sheet-ttd-nama{font-weight:700;}
+  .slip-sheet-footer{margin-top:18px; padding-top:10px; border-top:1px solid var(--border); font-size:11.5px; text-align:center;}
+  @media (max-width:560px){ .slip-sheet-grid2{grid-template-columns:1fr;} .slip-sheet-ttd{grid-template-columns:1fr;} }
+  @media print{
+    body *{visibility:hidden;}
+    #slip-preview-cetak,#slip-preview-cetak *{visibility:visible;}
+    #slip-preview-cetak{position:absolute; left:0; top:0; width:100%; box-shadow:none; border:none;}
+  }
 </style>
 </head>
 <body>
@@ -424,6 +462,7 @@
         <button data-sub="tugas">Tugas Kebersihan</button>
         <button data-sub="jamkerja">Jam Kerja</button>
         <button data-sub="qrweb">QR Akses Web</button>
+        <button data-sub="slipgaji">Slip Gaji</button>
       </div>
       <div id="grp-kelola">
         <div data-sub-panel="karyawan" id="sub-karyawan"></div>
@@ -431,7 +470,97 @@
         <div data-sub-panel="patroli" id="sub-patroli" class="hidden"></div>
         <div data-sub-panel="tugas" id="sub-tugas" class="hidden"></div>
         <div data-sub-panel="jamkerja" id="sub-jamkerja" class="hidden"></div>
-        <div data-sub-panel="qrweb" id="sub-qrweb" class="hidden">
+        <div data-sub-panel="slipgaji" id="sub-slipgaji" class="hidden">
+          <div class="panel">
+            <div class="section-title">Slip Gaji Generator</div>
+            <p class="muted" style="font-size:13px; margin-top:-6px;">Isi data di bawah, klik Preview untuk melihat hasilnya, lalu Unduh untuk mencetak/simpan sebagai PDF. Belum tersimpan ke sistem — murni alat bantu buat slip.</p>
+            <div class="slip-cols">
+              <div class="slip-col">
+                <label>Logo Perusahaan (opsional)</label>
+                <div class="kd-foto-row">
+                  <img id="slip-logo-preview" class="foto-thumb hidden" alt="Preview logo">
+                  <input type="file" accept="image/*" id="slip-logo-input">
+                </div>
+
+                <label>Nama Perusahaan</label>
+                <input type="text" id="slip-nama-perusahaan" placeholder="PT. Ray Mitra Perkasa">
+
+                <label>Nomor/ID Perusahaan (opsional)</label>
+                <input type="text" id="slip-id-perusahaan" placeholder="02145678">
+
+                <label>Slip Gaji untuk Bulan</label>
+                <input type="month" id="slip-bulan">
+
+                <div class="section-title" style="margin-top:18px;">Rincian Karyawan</div>
+
+                <label>Nama Karyawan</label>
+                <input type="text" id="slip-nama-karyawan" list="slip-daftar-karyawan" placeholder="Nama karyawan">
+                <datalist id="slip-daftar-karyawan"></datalist>
+
+                <label>ID Karyawan (opsional)</label>
+                <input type="text" id="slip-id-karyawan" placeholder="AP1201">
+
+                <label>Jabatan</label>
+                <select id="slip-jabatan">
+                  <option value="Komandan Peleton (Danton)">Komandan Peleton (Danton)</option>
+                  <option value="Wakil Komandan Peleton (Wadanton)">Wakil Komandan Peleton (Wadanton)</option>
+                  <option value="Komandan Regu (Danru)">Komandan Regu (Danru)</option>
+                  <option value="Anggota" selected>Anggota</option>
+                </select>
+
+                <label>Departemen</label>
+                <select id="slip-departemen">
+                  <option value="Keamanan" selected>Keamanan</option>
+                  <option value="Kebersihan">Kebersihan</option>
+                  <option value="Administrasi">Administrasi</option>
+                  <option value="Pengemudi">Pengemudi</option>
+                </select>
+
+                <label>Golongan (opsional)</label>
+                <input type="text" id="slip-golongan" placeholder="Golongan 3">
+
+                <label>Payroll Cut Off (opsional)</label>
+                <input type="text" id="slip-cutoff" placeholder="1/10/2023-31/10/2023">
+
+                <label>Tanggal Bayar</label>
+                <input type="date" id="slip-tgl-bayar">
+
+                <div class="section-title" style="margin-top:18px;">Rincian Penghasilan</div>
+                <div class="slip-income-cols">
+                  <div>
+                    <label>Pendapatan</label>
+                    <div id="slip-pendapatan-rows"></div>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="tambahSlipItem('pendapatan')">+ Tambah item</button>
+                  </div>
+                  <div>
+                    <label>Pengurangan</label>
+                    <div id="slip-pengurangan-rows"></div>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="tambahSlipItem('pengurangan')">+ Tambah item</button>
+                  </div>
+                </div>
+
+                <label>Catatan (opsional)</label>
+                <textarea id="slip-catatan" rows="2"></textarea>
+
+                <label>Disetujui oleh - Nama</label>
+                <input type="text" id="slip-disetujui-nama" value="Bayu Brawarso">
+                <label>Disetujui oleh - Jabatan</label>
+                <input type="text" id="slip-disetujui-jabatan" value="HR Manager">
+
+                <div class="kd-form-row" style="margin-top:16px;">
+                  <button type="button" class="btn btn-navy" style="width:auto;" onclick="renderSlipPreview()">Preview</button>
+                  <button type="button" class="btn btn-outline" style="width:auto;" onclick="unduhSlipGaji()">Unduh Slip Gaji</button>
+                </div>
+              </div>
+
+              <div class="slip-col">
+                <div id="slip-preview-cetak" class="slip-preview">
+                  <div class="muted" style="text-align:center; padding:40px 0;">Klik Preview untuk melihat hasil slip gaji.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
           <div class="panel">
             <div class="section-title">QR Akses Web Karyawan</div>
             <p class="muted" style="font-size:13px; margin-top:-6px;">Tempel link GitHub Pages web absensi karyawan (index.html), lalu generate QR-nya. Link ini otomatis diingat di browser ini untuk generate berikutnya.</p>
@@ -519,6 +648,8 @@ const KOORDINATOR_SESSION_KEY = 'ray_koordinator_session';
 let kodeKoordinator = '';
 let klienIdAktif = '';
 let daftarLokasiKoordinator = [];
+let namaKlienAktif = '';
+let logoKlienAktif = '';
 
 // Ikon PWA yang sudah diinstal membuka halaman tanpa query string (?klien=...&akses=...).
 // Simpan link lengkap saat dibuka normal, lalu redirect otomatis ke link itu
@@ -640,7 +771,9 @@ async function muatInfoSistem() {
   if (sub) sub.textContent = nama ? ('Klien: ' + nama) : '';
   const brand = document.getElementById('brand-header');
   if (brand) brand.textContent = nama ? ('Absensi RAY · ' + nama) : 'Absensi RAY';
+  namaKlienAktif = nama;
   if (res.logoUrl) {
+    logoKlienAktif = res.logoUrl;
     document.querySelectorAll('img[alt="logo"]').forEach(el => { el.src = res.logoUrl; });
   }
 }
@@ -836,7 +969,9 @@ document.querySelectorAll('.subtabs[data-target]').forEach(group => {
       wrap.querySelectorAll('[data-sub-panel]').forEach(p => p.classList.add('hidden'));
       wrap.querySelector('[data-sub-panel="' + b.dataset.sub + '"]').classList.remove('hidden');
       if (group.dataset.target === 'grp-kelola') {
-        if (b.dataset.sub === 'qrweb') initQrWeb(); else muatKelola(b.dataset.sub);
+        if (b.dataset.sub === 'qrweb') initQrWeb();
+        else if (b.dataset.sub === 'slipgaji') initSlipGaji();
+        else muatKelola(b.dataset.sub);
       }
     });
   });
@@ -1512,6 +1647,159 @@ function kodeKlienAktif() {
   if (!MODE_KOORDINATOR) return KODE_KLIEN;
   const lokasi = daftarLokasiKoordinator.find(l => l.id === klienIdAktif);
   return lokasi ? lokasi.kodeKlien : '';
+}
+
+// ---------- SLIP GAJI GENERATOR ----------
+// Murni alat bantu di sisi browser (belum tersimpan ke database) - isian
+// Pendapatan/Pengurangan bebas diedit (nama item & nominal), bukan daftar
+// tetap, supaya admin bisa menyesuaikan per karyawan/bulan.
+let slipPendapatan = [{ nama: 'Gaji pokok', jumlah: 0 }, { nama: 'Uang Makan', jumlah: 0 }];
+let slipPengurangan = [{ nama: 'PPH 21', jumlah: 0 }, { nama: 'BPJS Kesehatan', jumlah: 0 }];
+let slipLogoDataUrl = '';
+let slipGajiTerinit = false;
+
+function initSlipGaji() {
+  renderSlipItemRows();
+  // Prefill hanya kalau field masih kosong, supaya tidak menimpa isian admin
+  // yang sedang diketik saat pindah-pindah subtab lalu balik lagi ke sini.
+  const elNamaPerusahaan = document.getElementById('slip-nama-perusahaan');
+  if (!elNamaPerusahaan.value && namaKlienAktif) elNamaPerusahaan.value = namaKlienAktif;
+  if (logoKlienAktif && !slipLogoDataUrl) {
+    slipLogoDataUrl = logoKlienAktif;
+    const preview = document.getElementById('slip-logo-preview');
+    preview.src = logoKlienAktif;
+    preview.classList.remove('hidden');
+  }
+  const elBulan = document.getElementById('slip-bulan');
+  if (!elBulan.value) {
+    const now = new Date();
+    elBulan.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  }
+  // Daftar nama karyawan untuk saran (datalist) - ambil dari cache "Karyawan"
+  // yang sudah dimuat (subtab Karyawan selalu dibuka duluan saat tab Kelola
+  // Data pertama kali aktif), jadi tidak perlu fetch ulang ke server di sini.
+  const dl = document.getElementById('slip-daftar-karyawan');
+  dl.innerHTML = (kelolaCache.karyawan || []).map(k => '<option value="' + escAttrSlip(k.nama) + '">').join('');
+  if (!slipGajiTerinit) {
+    document.getElementById('slip-logo-input').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const dataUrl = await resizeImageFileToDataUrl(file, 300);
+        slipLogoDataUrl = dataUrl;
+        const preview = document.getElementById('slip-logo-preview');
+        preview.src = dataUrl;
+        preview.classList.remove('hidden');
+      } catch (err) {
+        showToast('Gagal membaca file logo.', false);
+      }
+    });
+    slipGajiTerinit = true;
+  }
+}
+
+function renderSlipItemRows() {
+  const kolom = (tipe, arr) => arr.map((item, i) =>
+    '<div class="slip-item-row">' +
+      '<input type="text" value="' + escAttrSlip(item.nama) + '" placeholder="Nama item" oninput="updateSlipItem(\'' + tipe + '\',' + i + ',\'nama\',this.value)">' +
+      '<input type="text" inputmode="numeric" value="' + (item.jumlah || '') + '" placeholder="0" oninput="updateSlipItem(\'' + tipe + '\',' + i + ',\'jumlah\',this.value)">' +
+      '<button type="button" class="btn btn-danger btn-sm" onclick="hapusSlipItem(\'' + tipe + '\',' + i + ')">✕</button>' +
+    '</div>'
+  ).join('');
+  document.getElementById('slip-pendapatan-rows').innerHTML = kolom('pendapatan', slipPendapatan);
+  document.getElementById('slip-pengurangan-rows').innerHTML = kolom('pengurangan', slipPengurangan);
+}
+function tambahSlipItem(tipe) {
+  (tipe === 'pendapatan' ? slipPendapatan : slipPengurangan).push({ nama: '', jumlah: 0 });
+  renderSlipItemRows();
+}
+function hapusSlipItem(tipe, idx) {
+  (tipe === 'pendapatan' ? slipPendapatan : slipPengurangan).splice(idx, 1);
+  renderSlipItemRows();
+}
+function updateSlipItem(tipe, idx, field, value) {
+  const arr = tipe === 'pendapatan' ? slipPendapatan : slipPengurangan;
+  if (!arr[idx]) return;
+  arr[idx][field] = field === 'jumlah' ? (parseInt(String(value).replace(/[^0-9]/g, ''), 10) || 0) : value;
+}
+function escAttrSlip(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+function escHtmlSlip(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function formatRpSlip(n) { return 'Rp' + (n || 0).toLocaleString('id-ID'); }
+function formatTanggalIndoSlip(isoDate) {
+  const bagian = isoDate.split('-');
+  return Number(bagian[2]) + '/' + Number(bagian[1]) + '/' + bagian[0];
+}
+
+function renderSlipPreview() {
+  const namaPerusahaan = document.getElementById('slip-nama-perusahaan').value.trim() || 'Nama Perusahaan';
+  const idPerusahaan = document.getElementById('slip-id-perusahaan').value.trim();
+  const bulanVal = document.getElementById('slip-bulan').value;
+  const bulanText = bulanVal ? (NAMA_BULAN[parseInt(bulanVal.split('-')[1], 10) - 1] + ' ' + bulanVal.split('-')[0]) : '-';
+
+  const namaKaryawan = document.getElementById('slip-nama-karyawan').value.trim() || '-';
+  const idKaryawan = document.getElementById('slip-id-karyawan').value.trim();
+  const jabatan = document.getElementById('slip-jabatan').value;
+  const departemen = document.getElementById('slip-departemen').value;
+  const golongan = document.getElementById('slip-golongan').value.trim();
+  const cutoff = document.getElementById('slip-cutoff').value.trim();
+  const tglBayarVal = document.getElementById('slip-tgl-bayar').value;
+  const tglBayar = tglBayarVal ? formatTanggalIndoSlip(tglBayarVal) : '-';
+
+  const catatan = document.getElementById('slip-catatan').value.trim();
+  const disetujuiNama = document.getElementById('slip-disetujui-nama').value.trim() || 'Bayu Brawarso';
+  const disetujuiJabatan = document.getElementById('slip-disetujui-jabatan').value.trim() || 'HR Manager';
+
+  const totalPendapatan = slipPendapatan.reduce((s, it) => s + (it.jumlah || 0), 0);
+  const totalPengurangan = slipPengurangan.reduce((s, it) => s + (it.jumlah || 0), 0);
+  const thp = totalPendapatan - totalPengurangan;
+
+  const baris = (arr) => arr.map(it => '<tr><td>' + escHtmlSlip(it.nama || '-') + '</td><td class="num">' + formatRpSlip(it.jumlah) + '</td></tr>').join('');
+
+  document.getElementById('slip-preview-cetak').innerHTML =
+    '<div class="slip-sheet-head">' +
+      '<div class="slip-sheet-brand">' +
+        (slipLogoDataUrl ? '<img src="' + slipLogoDataUrl + '" alt="Logo">' : '') +
+        '<div><div class="slip-sheet-nama-pt">' + escHtmlSlip(namaPerusahaan) + '</div>' +
+        (idPerusahaan ? '<div class="muted">' + escHtmlSlip(idPerusahaan) + '</div>' : '') + '</div>' +
+      '</div>' +
+      '<div style="text-align:right;">' +
+        '<div class="muted">Slip gaji untuk bulan</div>' +
+        '<div class="slip-sheet-bulan">' + bulanText + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="slip-sheet-section-title">Rincian karyawan</div>' +
+    '<div class="slip-sheet-grid2">' +
+      '<div><span>Nama karyawan</span><span>' + escHtmlSlip(namaKaryawan) + '</span></div>' +
+      '<div><span>Golongan</span><span>' + escHtmlSlip(golongan || '-') + '</span></div>' +
+      '<div><span>ID karyawan</span><span>' + escHtmlSlip(idKaryawan || '-') + '</span></div>' +
+      '<div><span>Payroll cut off</span><span>' + escHtmlSlip(cutoff || '-') + '</span></div>' +
+      '<div><span>Jabatan</span><span>' + escHtmlSlip(jabatan) + '</span></div>' +
+      '<div><span>Tanggal bayar</span><span>' + tglBayar + '</span></div>' +
+      '<div><span>Departemen</span><span>' + escHtmlSlip(departemen) + '</span></div>' +
+    '</div>' +
+    '<div class="slip-sheet-section-title">Rincian penghasilan</div>' +
+    '<div class="slip-sheet-grid2">' +
+      '<table><thead><tr><th>Pendapatan</th><th class="num">Jumlah</th></tr></thead><tbody>' + baris(slipPendapatan) +
+        '<tr class="slip-total-row"><td>Total pendapatan</td><td class="num">' + formatRpSlip(totalPendapatan) + '</td></tr>' +
+      '</tbody></table>' +
+      '<table><thead><tr><th>Pengurangan</th><th class="num">Jumlah</th></tr></thead><tbody>' + baris(slipPengurangan) +
+        '<tr class="slip-total-row"><td>Total pengurangan</td><td class="num">' + formatRpSlip(totalPengurangan) + '</td></tr>' +
+      '</tbody></table>' +
+    '</div>' +
+    '<div class="slip-sheet-thp">' +
+      '<div><div class="slip-sheet-thp-label">Take Home Pay</div><div class="muted" style="font-size:11.5px;">Total pendapatan - Total pengurangan</div></div>' +
+      '<div class="slip-sheet-thp-value">' + formatRpSlip(thp) + '</div>' +
+    '</div>' +
+    (catatan ? '<div class="slip-sheet-section-title">Catatan</div><div style="font-size:13px;">' + escHtmlSlip(catatan) + '</div>' : '') +
+    '<div class="slip-sheet-ttd">' +
+      '<div><div class="muted">Disetujui oleh:</div><div class="slip-sheet-ttd-space"></div><div class="slip-sheet-ttd-nama">' + escHtmlSlip(disetujuiNama) + '</div><div class="muted">' + escHtmlSlip(disetujuiJabatan) + '</div></div>' +
+      '<div><div class="muted">Diterima oleh:</div><div class="slip-sheet-ttd-space"></div><div class="slip-sheet-ttd-nama">' + escHtmlSlip(namaKaryawan) + '</div><div class="muted">' + escHtmlSlip(jabatan) + '</div></div>' +
+    '</div>' +
+    '<div class="slip-sheet-footer muted">Slip gaji ini dibuat dengan Ray-One Payslip Generator</div>';
+}
+function unduhSlipGaji() {
+  renderSlipPreview();
+  setTimeout(() => window.print(), 50);
 }
 
 let kodeQrAbsensi = '';
