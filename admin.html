@@ -1207,6 +1207,11 @@ const ENTITAS_KELOLA = {
       { key: 'noHp', label: 'No HP (opsional)', type: 'text' },
       { key: 'alamat', label: 'Alamat (opsional)', type: 'text' },
       { key: 'bagianKerja', label: 'Bagian Kerja', type: 'select', options: ['Security','Cleaning Service','Administrasi','Pengemudi','Tenaga Lapangan','Tenaga Produksi','Tenaga Operator','Lainnya'] },
+      // Jabatan (Danton/Wadanton/Danru/Anggota) khusus klien yang pakai fitur
+      // Slip Gaji (lihat KLIEN_SLIP_GAJI_DIIZINKAN) - admin yang menentukan
+      // jabatan tiap karyawan di sini, bisa diubah kapan saja (tidak cuma
+      // saat Setujui pendaftaran).
+      ...(KLIEN_SLIP_GAJI_DIIZINKAN.includes(KODE_KLIEN) ? [{ key: 'jabatan', label: 'Jabatan', type: 'select', options: ['Komandan Peleton (Danton)', 'Wakil Komandan Peleton (Wadanton)', 'Komandan Regu (Danru)', 'Anggota'] }] : []),
       { key: 'pin', label: 'PIN (4 digit)', type: 'text' }
     ]
   },
@@ -1735,6 +1740,12 @@ function karyawanTerpilihSlip() {
 function pilihSlipKaryawan() {
   const k = karyawanTerpilihSlip();
   document.getElementById('slip-id-karyawan').value = k ? (k.idKaryawan || '-') : '';
+  // Jabatan karyawan ditentukan admin lewat Kelola Data > Karyawan - ikut
+  // dipakai di sini supaya template yang termuat sesuai jabatan orangnya.
+  if (k && k.jabatan) {
+    document.getElementById('slip-jabatan').value = k.jabatan;
+    muatTemplateSlipGaji();
+  }
 }
 
 async function muatDaftarSlipGajiTersimpan() {
