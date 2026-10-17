@@ -687,10 +687,24 @@ function rayGetCookie(nama) {
     return m ? decodeURIComponent(m[1]) : '';
   } catch (e) { return ''; }
 }
+// Cadangan tambahan selain cookie/localStorage: titipkan ?klien=... ke Cache
+// Storage milik Service Worker (lewat postMessage). Beberapa iPhone TERBUKTI
+// tidak membawa cookie/localStorage dari Safari ke web app Home Screen yang
+// baru pertama kali dibuka, sedangkan Cache Storage punya SW konsisten
+// dipakai bersama karena SW-nya sendiri sama. Kalau ini juga gagal (SW belum
+// aktif), redirect di sw.js saat halaman dibuka tanpa query string tetap
+// akan coba pakai apa pun yang berhasil tersimpan.
+function kirimQsKeServiceWorker(halaman, qs) {
+  if (!qs || !('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.ready.then((reg) => {
+    if (reg.active) reg.active.postMessage({ type: 'SIMPAN_QS', halaman, qs });
+  }).catch(() => {});
+}
 let SEDANG_REDIRECT_PWA = false;
 if (KODE_KLIEN) {
   raySetCookie('ray_pwa_start_qs', location.search, 730);
   try { localStorage.setItem('ray_pwa_start_qs', location.search); } catch(e){}
+  kirimQsKeServiceWorker('index.html', location.search);
 } else {
   try {
     const savedQs = rayGetCookie('ray_pwa_start_qs') || localStorage.getItem('ray_pwa_start_qs') || '';
