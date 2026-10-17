@@ -224,6 +224,7 @@
   .slip-item-row input:first-child{flex:1 1 55%;}
   .slip-item-row input:nth-child(2){flex:1 1 40%;}
   .slip-preview{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow); position:sticky; top:16px;}
+  .slip-preview.slip-pdf-capturing{position:static;}
   .slip-sheet-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:18px;}
   .slip-sheet-brand{display:flex; align-items:center; gap:10px;}
   .slip-sheet-brand img{width:36px; height:36px; object-fit:contain; border-radius:6px;}
@@ -1919,15 +1920,24 @@ function unduhSlipGajiPdf() {
     '_' + (document.getElementById('slip-bulan').value || 'bulan') + '.pdf';
   const btn = document.getElementById('btn-unduh-slip-pdf');
   setBusy(btn, true, 'Membuat PDF...', 'Unduh PDF');
+  const el = document.getElementById('slip-preview-cetak');
+  // html2canvas salah menangkap elemen position:sticky (dianggap "nempel" di
+  // posisi scroll saat itu, bukan di tempat aslinya) dan secara default cuma
+  // menangkap seukuran viewport browser yang sedang terbuka, bukan seluruh
+  // tinggi/lebar kontennya - makanya hasil PDF sebelumnya ada spasi kosong
+  // besar di atas dan rincian penghasilan ke bawah kepotong. Lepas sticky +
+  // paksa windowWidth/windowHeight ke ukuran konten asli supaya tertangkap utuh.
+  el.classList.add('slip-pdf-capturing');
+  window.scrollTo(0, 0);
   html2pdf().set({
     margin: 10,
     filename: namaFile,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
+    html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: el.scrollWidth, windowHeight: el.scrollHeight },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  }).from(document.getElementById('slip-preview-cetak')).save()
-    .then(() => setBusy(btn, false, '', 'Unduh PDF'))
-    .catch(() => { setBusy(btn, false, '', 'Unduh PDF'); showToast('Gagal membuat PDF.', false); });
+  }).from(el).save()
+    .then(() => { el.classList.remove('slip-pdf-capturing'); setBusy(btn, false, '', 'Unduh PDF'); })
+    .catch(() => { el.classList.remove('slip-pdf-capturing'); setBusy(btn, false, '', 'Unduh PDF'); showToast('Gagal membuat PDF.', false); });
 }
 
 let kodeQrAbsensi = '';

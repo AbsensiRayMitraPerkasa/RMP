@@ -333,6 +333,7 @@
     background:var(--card); width:100%; max-width:480px; border-radius:20px 20px 0 0;
     padding:14px 16px calc(16px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto;
   }
+  .modal-sheet.slip-pdf-capturing{max-height:none; overflow:visible;}
   .modal-sheet h3{font-size:15px; margin-bottom:9px;}
 
 
@@ -1456,15 +1457,25 @@ document.getElementById('btn-unduh-slipgaji-pdf').addEventListener('click', () =
   const btn = document.getElementById('btn-unduh-slipgaji-pdf');
   const labelAsli = btn.textContent;
   btn.disabled = true; btn.textContent = 'Membuat PDF...';
+  const el = document.getElementById('home-slipgaji');
+  const modalSheet = el.closest('.modal-sheet');
+  // Modal ini position:fixed + overflow-y:auto dengan tinggi dibatasi (88vh),
+  // html2canvas jadi cuma menangkap bagian yang lagi kelihatan di layar (ikut
+  // kepotong kalau isinya lebih panjang dari itu) dan posisinya salah hitung.
+  // Lepas batasan tinggi/overflow dulu + paksa ukuran capture ke ukuran
+  // konten asli, baru kembalikan setelah selesai.
+  modalSheet.classList.add('slip-pdf-capturing');
+  modalSheet.scrollTop = 0;
+  window.scrollTo(0, 0);
   html2pdf().set({
     margin: 10,
     filename: namaFile,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
+    html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: el.scrollWidth, windowHeight: el.scrollHeight },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  }).from(document.getElementById('home-slipgaji')).save()
-    .then(() => { btn.disabled = false; btn.textContent = labelAsli; })
-    .catch(() => { btn.disabled = false; btn.textContent = labelAsli; showToast('Gagal membuat PDF.', false); });
+  }).from(el).save()
+    .then(() => { modalSheet.classList.remove('slip-pdf-capturing'); btn.disabled = false; btn.textContent = labelAsli; })
+    .catch(() => { modalSheet.classList.remove('slip-pdf-capturing'); btn.disabled = false; btn.textContent = labelAsli; showToast('Gagal membuat PDF.', false); });
 });
 
 let presensiJenis = null, presensiFotoB64 = null;
