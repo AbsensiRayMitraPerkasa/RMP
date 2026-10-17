@@ -1479,11 +1479,23 @@ document.getElementById('btn-unduh-slipgaji-pdf').addEventListener('click', () =
     document.body.appendChild(offscreen);
   }
   offscreen.innerHTML = document.getElementById('home-slipgaji').innerHTML;
+  // html2canvas defaultnya menangkap seukuran viewport browser yang sedang
+  // kebuka (window.innerWidth/innerHeight) dari posisi scroll saat itu, BUKAN
+  // ukuran elemen yang di-capture - tidak peduli elemen itu sendiri bebas dari
+  // sticky/fixed atau tidak. Kalau kontainer offscreen ini kebetulan jatuh di
+  // bagian halaman yang lebih panjang dari satu layar, isinya tetap bisa
+  // kosong/kepotong. Reset scroll ke atas + paksa windowWidth/windowHeight ke
+  // ukuran SELURUH halaman supaya kontainer ini pasti ikut tertangkap utuh.
+  window.scrollTo(0, 0);
   html2pdf().set({
     margin: 10,
     filename: namaFile,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
+    html2canvas: {
+      scale: 2, useCORS: true, scrollX: 0, scrollY: 0,
+      windowWidth: document.documentElement.scrollWidth,
+      windowHeight: document.documentElement.scrollHeight
+    },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   }).from(offscreen).save()
     .then(() => { offscreen.remove(); btn.disabled = false; btn.textContent = labelAsli; })
