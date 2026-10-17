@@ -329,6 +329,11 @@
     position:fixed; inset:0; background:rgba(15,25,40,.55); z-index:60;
     display:flex; align-items:flex-end; justify-content:center;
   }
+  /* html2canvas menghitung posisi elemen jadi salah kalau ada leluhur
+     position:fixed (sama seperti kasus position:sticky di admin.html) -
+     sesaat sebelum capture PDF, overlay dilepas jadi static supaya tidak
+     ikut membuat offset/pemotongan yang salah (lihat unduhSlipGajiPdf). */
+  .modal-overlay.slip-pdf-capturing{position:static; display:block; background:none;}
   .modal-sheet{
     background:var(--card); width:100%; max-width:480px; border-radius:20px 20px 0 0;
     padding:14px 16px calc(16px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto;
@@ -1459,14 +1464,18 @@ document.getElementById('btn-unduh-slipgaji-pdf').addEventListener('click', () =
   btn.disabled = true; btn.textContent = 'Membuat PDF...';
   const el = document.getElementById('home-slipgaji');
   const modalSheet = el.closest('.modal-sheet');
-  // Modal ini position:fixed + overflow-y:auto dengan tinggi dibatasi (88vh),
-  // html2canvas jadi cuma menangkap bagian yang lagi kelihatan di layar (ikut
-  // kepotong kalau isinya lebih panjang dari itu) dan posisinya salah hitung.
-  // Lepas batasan tinggi/overflow dulu + paksa ukuran capture ke ukuran
-  // konten asli, baru kembalikan setelah selesai.
+  const modalOverlay = document.getElementById('modal-slipgaji');
+  // Modal ini position:fixed (overlay) di dalam position:fixed + overflow-y:auto
+  // dengan tinggi dibatasi (sheet, 88vh). html2canvas salah hitung posisi
+  // elemen yang leluhurnya position:fixed (sama kasusnya dengan sticky di
+  // admin.html) dan defaultnya cuma menangkap bagian yang kelihatan di layar,
+  // jadi kepotong kalau isinya lebih panjang. Lepas semua batasan itu dulu +
+  // paksa ukuran capture ke ukuran konten asli, baru kembalikan setelah selesai.
+  modalOverlay.classList.add('slip-pdf-capturing');
   modalSheet.classList.add('slip-pdf-capturing');
   modalSheet.scrollTop = 0;
   window.scrollTo(0, 0);
+  const beresin = () => { modalOverlay.classList.remove('slip-pdf-capturing'); modalSheet.classList.remove('slip-pdf-capturing'); };
   html2pdf().set({
     margin: 10,
     filename: namaFile,
@@ -1474,8 +1483,8 @@ document.getElementById('btn-unduh-slipgaji-pdf').addEventListener('click', () =
     html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: el.scrollWidth, windowHeight: el.scrollHeight },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   }).from(el).save()
-    .then(() => { modalSheet.classList.remove('slip-pdf-capturing'); btn.disabled = false; btn.textContent = labelAsli; })
-    .catch(() => { modalSheet.classList.remove('slip-pdf-capturing'); btn.disabled = false; btn.textContent = labelAsli; showToast('Gagal membuat PDF.', false); });
+    .then(() => { beresin(); btn.disabled = false; btn.textContent = labelAsli; })
+    .catch(() => { beresin(); btn.disabled = false; btn.textContent = labelAsli; showToast('Gagal membuat PDF.', false); });
 });
 
 let presensiJenis = null, presensiFotoB64 = null;
