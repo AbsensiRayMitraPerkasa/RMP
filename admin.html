@@ -52,7 +52,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
     --bg:#eef1f6; --card:#ffffff; --border:#e3e7ee;
@@ -224,7 +224,6 @@
   .slip-item-row input:first-child{flex:1 1 55%;}
   .slip-item-row input:nth-child(2){flex:1 1 40%;}
   .slip-preview{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow); position:sticky; top:16px;}
-  .slip-preview.slip-pdf-capturing{position:static;}
   .slip-sheet-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:18px;}
   .slip-sheet-brand{display:flex; align-items:center; gap:10px;}
   .slip-sheet-brand img{width:36px; height:36px; object-fit:contain; border-radius:6px;}
@@ -1913,31 +1912,158 @@ function renderSlipPreview() {
     '</div>' +
     '<div class="slip-sheet-footer">Slip gaji ini dibuat dengan Ray-One Payslip Generator</div>';
 }
+// Dulu PDF dibuat dengan "memotret" (html2canvas) tampilan preview di layar -
+// TERBUKTI berkali-kali gagal (posisi/ukuran salah hitung kalau ada
+// sticky/fixed/scroll di sekitarnya). Sekarang PDF digambar langsung pakai
+// jsPDF (teks & kotak asli, bukan gambar hasil jepretan layar), independen
+// dari tampilan preview - hasilnya konsisten mengikuti layout template,
+// tidak ikut-ikutan gaya tampilan di layar mana pun.
+function gambarSlipGajiPdf(data) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const kiri = 16, kanan = 194, lebar = kanan - kiri;
+  const NAVY = [23, 56, 92], MUTED = [124, 135, 152], TEKS = [31, 41, 55], GARIS = [227, 231, 238], SOFT = [234, 240, 246], HIJAU = [227, 242, 230];
+
+  let y = 20;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.text(data.namaPerusahaan || '-', kiri, y);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text('Slip gaji untuk bulan', kanan, y - 4, { align: 'right' });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.text(data.bulanText || '-', kanan, y + 2, { align: 'right' });
+
+  y += 12;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+  doc.text('Rincian karyawan', kiri, y);
+  y += 6;
+
+  const infoKiri = [['Nama karyawan', data.namaKaryawan], ['ID karyawan', data.idKaryawan], ['Jabatan', data.jabatan], ['Departemen', data.departemen]];
+  const infoKanan = data.infoKanan || [];
+  const tinggiBaris = 5.5;
+  const kolomKananX = kiri + 95;
+  const gambarBarisInfo = (x, baseY, label, value) => {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    doc.text(label, x, baseY);
+    doc.text(':', x + 32, baseY);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+    doc.text(String(value || '-'), x + 36, baseY);
+  };
+  const jmlBaris = Math.max(infoKiri.length, infoKanan.length);
+  for (let i = 0; i < jmlBaris; i++) {
+    const ry = y + i * tinggiBaris;
+    if (infoKiri[i]) gambarBarisInfo(kiri, ry, infoKiri[i][0], infoKiri[i][1]);
+    if (infoKanan[i]) gambarBarisInfo(kolomKananX, ry, infoKanan[i][0], infoKanan[i][1]);
+  }
+  y += jmlBaris * tinggiBaris + 5;
+
+  doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]); doc.setLineWidth(0.2);
+  doc.line(kiri, y, kanan, y);
+  y += 9;
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+  doc.text('Rincian penghasilan', kiri, y);
+  y += 5;
+
+  const lebarTabel = (lebar - 8) / 2;
+  const kolom1X = kiri, kolom2X = kiri + lebarTabel + 8;
+  const tinggiHeader = 7, tinggiItem = 6, tinggiTotal = 7;
+
+  const gambarTabel = (x, label, rows, total) => {
+    let ty = y;
+    doc.setFillColor(SOFT[0], SOFT[1], SOFT[2]);
+    doc.rect(x, ty, lebarTabel, tinggiHeader, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+    doc.text(label, x + 2, ty + 5);
+    doc.text('Jumlah', x + lebarTabel - 2, ty + 5, { align: 'right' });
+    ty += tinggiHeader;
+    rows.forEach((it) => {
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+      doc.text(String(it.nama || '-'), x + 2, ty + 4.3);
+      doc.text(formatRpSlip(it.jumlah), x + lebarTabel - 2, ty + 4.3, { align: 'right' });
+      doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]); doc.line(x, ty + tinggiItem, x + lebarTabel, ty + tinggiItem);
+      ty += tinggiItem;
+    });
+    doc.setFillColor(SOFT[0], SOFT[1], SOFT[2]);
+    doc.rect(x, ty, lebarTabel, tinggiTotal, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.text('Total ' + label.toLowerCase(), x + 2, ty + 5);
+    doc.text(formatRpSlip(total), x + lebarTabel - 2, ty + 5, { align: 'right' });
+    ty += tinggiTotal;
+    return ty;
+  };
+
+  const totalPendapatan = (data.pendapatan || []).reduce((s, it) => s + (it.jumlah || 0), 0);
+  const totalPengurangan = (data.pengurangan || []).reduce((s, it) => s + (it.jumlah || 0), 0);
+  const akhir1 = gambarTabel(kolom1X, 'Pendapatan', data.pendapatan || [], totalPendapatan);
+  const akhir2 = gambarTabel(kolom2X, 'Pengurangan', data.pengurangan || [], totalPengurangan);
+  y = Math.max(akhir1, akhir2) + 8;
+
+  const thp = totalPendapatan - totalPengurangan;
+  const tinggiThp = 16, lebarThp = 48;
+  doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]);
+  doc.rect(kiri, y, lebar, tinggiThp, 'S');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+  doc.text('Take Home Pay', kiri + 4, y + 7);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text('Total pendapatan - Total pengurangan', kiri + 4, y + 12);
+  doc.setFillColor(HIJAU[0], HIJAU[1], HIJAU[2]);
+  doc.rect(kanan - lebarThp, y, lebarThp, tinggiThp, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+  doc.text(formatRpSlip(thp), kanan - 4, y + 10, { align: 'right' });
+  y += tinggiThp + 10;
+
+  const kolC = kiri, kolD = kiri + 62, kolE = kiri + 124;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text('Catatan', kolC, y);
+  doc.text('Disetujui oleh:', kolD, y);
+  doc.text('Diterima oleh:', kolE, y);
+  if (data.catatan) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+    doc.text(doc.splitTextToSize(data.catatan, 55), kolC, y + 6);
+  }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+  doc.text(data.disetujuiNama || '-', kolD, y + 16);
+  doc.text(data.namaKaryawan || '-', kolE, y + 16);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text(data.disetujuiJabatan || '', kolD, y + 20.5);
+  doc.text(data.jabatan || '', kolE, y + 20.5);
+  y += 28;
+
+  doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]);
+  doc.line(kiri, y, kanan, y);
+  y += 5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text(data.footerText || '', kiri, y);
+
+  return doc;
+}
+
 function unduhSlipGajiPdf() {
   renderSlipPreview();
   const karyawanTerpilih = karyawanTerpilihSlip();
-  const namaFile = 'Slip_Gaji_' + (karyawanTerpilih ? karyawanTerpilih.nama.replace(/[^a-zA-Z0-9]+/g, '_') : 'Karyawan') +
-    '_' + (document.getElementById('slip-bulan').value || 'bulan') + '.pdf';
-  const btn = document.getElementById('btn-unduh-slip-pdf');
-  setBusy(btn, true, 'Membuat PDF...', 'Unduh PDF');
-  const el = document.getElementById('slip-preview-cetak');
-  // html2canvas salah menangkap elemen position:sticky (dianggap "nempel" di
-  // posisi scroll saat itu, bukan di tempat aslinya) dan secara default cuma
-  // menangkap seukuran viewport browser yang sedang terbuka, bukan seluruh
-  // tinggi/lebar kontennya - makanya hasil PDF sebelumnya ada spasi kosong
-  // besar di atas dan rincian penghasilan ke bawah kepotong. Lepas sticky +
-  // paksa windowWidth/windowHeight ke ukuran konten asli supaya tertangkap utuh.
-  el.classList.add('slip-pdf-capturing');
-  window.scrollTo(0, 0);
-  html2pdf().set({
-    margin: 10,
-    filename: namaFile,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: el.scrollWidth, windowHeight: el.scrollHeight },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  }).from(el).save()
-    .then(() => { el.classList.remove('slip-pdf-capturing'); setBusy(btn, false, '', 'Unduh PDF'); })
-    .catch(() => { el.classList.remove('slip-pdf-capturing'); setBusy(btn, false, '', 'Unduh PDF'); showToast('Gagal membuat PDF.', false); });
+  const namaKaryawan = karyawanTerpilih ? karyawanTerpilih.nama : '-';
+  const idKaryawan = document.getElementById('slip-id-karyawan').value.trim();
+  const jabatan = document.getElementById('slip-jabatan').value;
+  const departemen = document.getElementById('slip-departemen').value;
+  const namaPerusahaan = document.getElementById('slip-nama-perusahaan').value.trim() || 'Nama Perusahaan';
+  const bulanVal = document.getElementById('slip-bulan').value;
+  const bulanText = bulanVal ? (NAMA_BULAN[parseInt(bulanVal.split('-')[1], 10) - 1] + ' ' + bulanVal.split('-')[0]) : '-';
+  const cutoff = document.getElementById('slip-cutoff').value.trim();
+  const tglBayarVal = document.getElementById('slip-tgl-bayar').value;
+  const tglBayar = tglBayarVal ? formatTanggalIndoSlip(tglBayarVal) : '-';
+  const catatan = document.getElementById('slip-catatan').value.trim();
+  const disetujuiNama = document.getElementById('slip-disetujui-nama').value.trim() || 'Bayu Brawarso';
+  const disetujuiJabatan = document.getElementById('slip-disetujui-jabatan').value.trim() || 'HR Manager';
+
+  const doc = gambarSlipGajiPdf({
+    namaPerusahaan, bulanText, namaKaryawan, idKaryawan, jabatan, departemen,
+    infoKanan: [['Payroll cut off', cutoff || '-'], ['Tanggal bayar', tglBayar]],
+    pendapatan: slipPendapatan, pengurangan: slipPengurangan,
+    catatan, disetujuiNama, disetujuiJabatan,
+    footerText: 'Slip gaji ini dibuat dengan Ray-One Payslip Generator'
+  });
+  const namaFile = 'Slip_Gaji_' + namaKaryawan.replace(/[^a-zA-Z0-9]+/g, '_') + '_' + (bulanVal || 'bulan') + '.pdf';
+  doc.save(namaFile);
 }
 
 let kodeQrAbsensi = '';

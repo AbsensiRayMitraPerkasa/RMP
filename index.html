@@ -58,7 +58,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=JetBrains&#43;Mono:wght@400;700&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" defer></script>
 <style>
   :root{
@@ -334,22 +334,6 @@
     padding:14px 16px calc(16px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto;
   }
   .modal-sheet h3{font-size:15px; margin-bottom:9px;}
-  /* Capture PDF slip gaji TIDAK dilakukan langsung dari elemen yang tampil di
-     modal (leluhurnya position:fixed + overflow-y:auto bikin html2canvas
-     salah hitung ukuran/posisi, sudah terbukti 2x gagal walau sudah dilepas
-     sementara). Isinya disalin ke kontainer biasa ini dulu - sengaja TIDAK
-     diberi position:fixed/absolute dengan offset negatif (html2canvas malah
-     bisa menghasilkan canvas kosong/putih kalau elemennya di luar area yang
-     dianggap "window" miliknya) - cukup elemen biasa di akhir <body>, yang
-     otomatis ketutup modal overlay (z-index:60) yang sedang terbuka di
-     atasnya, jadi tidak kelihatan tanpa trik posisi yang berisiko. */
-  .slip-pdf-offscreen{width:680px; background:#fff; padding:24px;}
-  /* Tampilan di modal (layar HP sempit) sengaja menumpuk tabel Pendapatan/
-     Pengurangan ke bawah supaya tidak sesak. Tapi untuk hasil PDF kontainernya
-     dibuat lebih lebar (lihat .slip-pdf-offscreen di atas), jadi di sini
-     dipaksa berjejer kiri-kanan seperti template aslinya. */
-  .slip-pdf-offscreen .slip-sheet-grid2{flex-direction:row; flex-wrap:wrap;}
-  .slip-pdf-offscreen .slip-sheet-grid2 table{flex:1 1 280px;}
 
 
   .navbar{
@@ -1465,47 +1449,140 @@ document.getElementById('btn-slipgaji').addEventListener('click', () => {
 document.getElementById('btn-tutup-slipgaji').addEventListener('click', () => {
   document.getElementById('modal-slipgaji').classList.add('hidden');
 });
+// Dulu PDF dibuat dengan "memotret" (html2canvas) tampilan modal di layar -
+// TERBUKTI berkali-kali gagal (posisi/ukuran salah hitung kalau ada
+// fixed/overflow/scroll di sekitarnya, dan ikut menarik gaya tumpuk-ke-bawah
+// yang sengaja dipakai di tampilan HP). Sekarang PDF digambar langsung pakai
+// jsPDF (teks & kotak asli), independen dari tampilan modal - hasilnya file
+// tersendiri yang mengikuti layout template (Pendapatan/Pengurangan
+// berjejer), sementara tampilan di HP tetap seperti sekarang (tidak diubah).
+function gambarSlipGajiPdf(data) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const kiri = 16, kanan = 194, lebar = kanan - kiri;
+  const NAVY = [23, 56, 92], MUTED = [124, 135, 152], TEKS = [31, 41, 55], GARIS = [227, 231, 238], SOFT = [234, 240, 246], HIJAU = [227, 242, 230];
+
+  let y = 20;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.text(data.namaPerusahaan || '-', kiri, y);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text('Slip gaji untuk bulan', kanan, y - 4, { align: 'right' });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.text(data.bulanText || '-', kanan, y + 2, { align: 'right' });
+
+  y += 12;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+  doc.text('Rincian karyawan', kiri, y);
+  y += 6;
+
+  const infoKiri = [['Nama karyawan', data.namaKaryawan], ['ID karyawan', data.idKaryawan], ['Jabatan', data.jabatan], ['Departemen', data.departemen]];
+  const tinggiBaris = 5.5;
+  infoKiri.forEach((it, i) => {
+    const ry = y + i * tinggiBaris;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    doc.text(it[0], kiri, ry);
+    doc.text(':', kiri + 32, ry);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+    doc.text(String(it[1] || '-'), kiri + 36, ry);
+  });
+  y += infoKiri.length * tinggiBaris + 5;
+
+  doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]); doc.setLineWidth(0.2);
+  doc.line(kiri, y, kanan, y);
+  y += 9;
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+  doc.text('Rincian penghasilan', kiri, y);
+  y += 5;
+
+  const lebarTabel = (lebar - 8) / 2;
+  const kolom1X = kiri, kolom2X = kiri + lebarTabel + 8;
+  const tinggiHeader = 7, tinggiItem = 6, tinggiTotal = 7;
+
+  const gambarTabel = (x, label, rows, total) => {
+    let ty = y;
+    doc.setFillColor(SOFT[0], SOFT[1], SOFT[2]);
+    doc.rect(x, ty, lebarTabel, tinggiHeader, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+    doc.text(label, x + 2, ty + 5);
+    doc.text('Jumlah', x + lebarTabel - 2, ty + 5, { align: 'right' });
+    ty += tinggiHeader;
+    rows.forEach((it) => {
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+      doc.text(String(it.nama || '-'), x + 2, ty + 4.3);
+      doc.text(formatRpSlip(it.jumlah), x + lebarTabel - 2, ty + 4.3, { align: 'right' });
+      doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]); doc.line(x, ty + tinggiItem, x + lebarTabel, ty + tinggiItem);
+      ty += tinggiItem;
+    });
+    doc.setFillColor(SOFT[0], SOFT[1], SOFT[2]);
+    doc.rect(x, ty, lebarTabel, tinggiTotal, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.text('Total ' + label.toLowerCase(), x + 2, ty + 5);
+    doc.text(formatRpSlip(total), x + lebarTabel - 2, ty + 5, { align: 'right' });
+    ty += tinggiTotal;
+    return ty;
+  };
+
+  const totalPendapatan = (data.pendapatan || []).reduce((s, it) => s + (it.jumlah || 0), 0);
+  const totalPengurangan = (data.pengurangan || []).reduce((s, it) => s + (it.jumlah || 0), 0);
+  const akhir1 = gambarTabel(kolom1X, 'Pendapatan', data.pendapatan || [], totalPendapatan);
+  const akhir2 = gambarTabel(kolom2X, 'Pengurangan', data.pengurangan || [], totalPengurangan);
+  y = Math.max(akhir1, akhir2) + 8;
+
+  const thp = totalPendapatan - totalPengurangan;
+  const tinggiThp = 16, lebarThp = 48;
+  doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]);
+  doc.rect(kiri, y, lebar, tinggiThp, 'S');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+  doc.text('Take Home Pay', kiri + 4, y + 7);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text('Total pendapatan - Total pengurangan', kiri + 4, y + 12);
+  doc.setFillColor(HIJAU[0], HIJAU[1], HIJAU[2]);
+  doc.rect(kanan - lebarThp, y, lebarThp, tinggiThp, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+  doc.text(formatRpSlip(thp), kanan - 4, y + 10, { align: 'right' });
+  y += tinggiThp + 10;
+
+  const kolC = kiri, kolD = kiri + 62, kolE = kiri + 124;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text('Catatan', kolC, y);
+  doc.text('Disetujui oleh:', kolD, y);
+  doc.text('Diterima oleh:', kolE, y);
+  if (data.catatan) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+    doc.text(doc.splitTextToSize(data.catatan, 55), kolC, y + 6);
+  }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+  doc.text(data.disetujuiNama || '-', kolD, y + 16);
+  doc.text(data.namaKaryawan || '-', kolE, y + 16);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text(data.disetujuiJabatan || '', kolD, y + 20.5);
+  doc.text(data.jabatan || '', kolE, y + 20.5);
+  y += 28;
+
+  doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]);
+  doc.line(kiri, y, kanan, y);
+  y += 5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text(data.footerText || '', kiri, y);
+
+  return doc;
+}
+
 document.getElementById('btn-unduh-slipgaji-pdf').addEventListener('click', () => {
   if (!slipGajiSayaTerakhir) return;
-  const namaFile = 'Slip_Gaji_' + String(slipGajiSayaTerakhir.nama || 'Saya').replace(/[^a-zA-Z0-9]+/g, '_') +
-    '_' + SLIP_NAMA_BULAN[slipGajiSayaTerakhir.bulan - 1] + slipGajiSayaTerakhir.tahun + '.pdf';
-  const btn = document.getElementById('btn-unduh-slipgaji-pdf');
-  const labelAsli = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Membuat PDF...';
-  // Capture langsung dari elemen yang tampil di modal TERBUKTI gagal 2x
-  // (leluhurnya position:fixed bikin html2canvas salah hitung posisi/ukuran,
-  // bagian kiri konten malah hilang di percobaan kedua). Salin isinya ke
-  // kontainer polos di luar layar dulu (lihat .slip-pdf-offscreen) - tanpa
-  // leluhur fixed/sticky/overflow apapun - baru itu yang di-capture.
-  let offscreen = document.getElementById('slip-pdf-offscreen');
-  if (!offscreen) {
-    offscreen = document.createElement('div');
-    offscreen.id = 'slip-pdf-offscreen';
-    offscreen.className = 'slip-pdf-offscreen';
-    document.body.appendChild(offscreen);
-  }
-  offscreen.innerHTML = document.getElementById('home-slipgaji').innerHTML;
-  // html2canvas defaultnya menangkap seukuran viewport browser yang sedang
-  // kebuka (window.innerWidth/innerHeight) dari posisi scroll saat itu, BUKAN
-  // ukuran elemen yang di-capture - tidak peduli elemen itu sendiri bebas dari
-  // sticky/fixed atau tidak. Kalau kontainer offscreen ini kebetulan jatuh di
-  // bagian halaman yang lebih panjang dari satu layar, isinya tetap bisa
-  // kosong/kepotong. Reset scroll ke atas + paksa windowWidth/windowHeight ke
-  // ukuran SELURUH halaman supaya kontainer ini pasti ikut tertangkap utuh.
-  window.scrollTo(0, 0);
-  html2pdf().set({
-    margin: 10,
-    filename: namaFile,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: {
-      scale: 2, useCORS: true, scrollX: 0, scrollY: 0,
-      windowWidth: document.documentElement.scrollWidth,
-      windowHeight: document.documentElement.scrollHeight
-    },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  }).from(offscreen).save()
-    .then(() => { offscreen.remove(); btn.disabled = false; btn.textContent = labelAsli; })
-    .catch(() => { offscreen.remove(); btn.disabled = false; btn.textContent = labelAsli; showToast('Gagal membuat PDF.', false); });
+  const d = slipGajiSayaTerakhir;
+  const bulanText = SLIP_NAMA_BULAN[d.bulan - 1] + ' ' + d.tahun;
+  const doc = gambarSlipGajiPdf({
+    namaPerusahaan: 'PT. Ray Mitra Perkasa - Soerojo Hospital',
+    bulanText,
+    namaKaryawan: d.nama, idKaryawan: d.idKaryawan, jabatan: d.jabatan, departemen: d.departemen,
+    pendapatan: d.pendapatan, pengurangan: d.pengurangan,
+    catatan: d.catatan, disetujuiNama: d.disetujuiNama, disetujuiJabatan: d.disetujuiJabatan,
+    footerText: 'Rincian ini mengikuti pengaturan terbaru dari admin, bukan arsip tercetak.'
+  });
+  const namaFile = 'Slip_Gaji_' + String(d.nama || 'Saya').replace(/[^a-zA-Z0-9]+/g, '_') + '_' + SLIP_NAMA_BULAN[d.bulan - 1] + d.tahun + '.pdf';
+  doc.save(namaFile);
 });
 
 let presensiJenis = null, presensiFotoB64 = null;
