@@ -483,10 +483,7 @@
                 </div>
 
                 <label>Nama Perusahaan</label>
-                <input type="text" id="slip-nama-perusahaan" placeholder="PT. Ray Mitra Perkasa">
-
-                <label>Nomor/ID Perusahaan (opsional)</label>
-                <input type="text" id="slip-id-perusahaan" placeholder="02145678">
+                <input type="text" id="slip-nama-perusahaan" value="PT. Ray Mitra Perkasa - Soerojo Hospital" disabled>
 
                 <label>Slip Gaji untuk Bulan</label>
                 <input type="month" id="slip-bulan">
@@ -494,11 +491,12 @@
                 <div class="section-title" style="margin-top:18px;">Rincian Karyawan</div>
 
                 <label>Nama Karyawan</label>
-                <input type="text" id="slip-nama-karyawan" list="slip-daftar-karyawan" placeholder="Nama karyawan">
-                <datalist id="slip-daftar-karyawan"></datalist>
+                <select id="slip-nama-karyawan" onchange="pilihSlipKaryawan()">
+                  <option value="">Pilih karyawan...</option>
+                </select>
 
-                <label>ID Karyawan (opsional)</label>
-                <input type="text" id="slip-id-karyawan" placeholder="AP1201">
+                <label>ID Karyawan</label>
+                <input type="text" id="slip-id-karyawan" disabled>
 
                 <label>Jabatan</label>
                 <select id="slip-jabatan">
@@ -515,9 +513,6 @@
                   <option value="Administrasi">Administrasi</option>
                   <option value="Pengemudi">Pengemudi</option>
                 </select>
-
-                <label>Golongan (opsional)</label>
-                <input type="text" id="slip-golongan" placeholder="Golongan 3">
 
                 <label>Payroll Cut Off (opsional)</label>
                 <input type="text" id="slip-cutoff" placeholder="1/10/2023-31/10/2023">
@@ -548,6 +543,7 @@
                 <input type="text" id="slip-disetujui-jabatan" value="HR Manager">
 
                 <div class="kd-form-row" style="margin-top:16px;">
+                  <button type="button" class="btn btn-primary" style="width:auto;" onclick="simpanSlipGaji()">Simpan Pengaturan</button>
                   <button type="button" class="btn btn-navy" style="width:auto;" onclick="renderSlipPreview()">Preview</button>
                   <button type="button" class="btn btn-outline" style="width:auto;" onclick="unduhSlipGaji()">Unduh Slip Gaji</button>
                 </div>
@@ -560,7 +556,18 @@
               </div>
             </div>
           </div>
+          <div class="panel">
+            <div class="section-title">Pengaturan Slip Gaji Tersimpan</div>
+            <p class="muted" style="font-size:13px; margin-top:-6px;">Pengaturan per karyawan (jabatan, departemen, rincian penghasilan) yang sudah pernah disimpan. Klik Edit untuk memuatnya kembali ke form di atas.</p>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Nama Karyawan</th><th>ID Karyawan</th><th>Jabatan</th><th>Departemen</th><th>Terakhir Diubah</th><th></th></tr></thead>
+                <tbody id="slip-daftar-tersimpan"><tr><td colspan="6" class="muted">Belum ada pengaturan tersimpan.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
         </div>
+        <div data-sub-panel="qrweb" id="sub-qrweb" class="hidden">
           <div class="panel">
             <div class="section-title">QR Akses Web Karyawan</div>
             <p class="muted" style="font-size:13px; margin-top:-6px;">Tempel link GitHub Pages web absensi karyawan (index.html), lalu generate QR-nya. Link ini otomatis diingat di browser ini untuk generate berikutnya.</p>
@@ -1662,13 +1669,10 @@ let slipPendapatan = [{ nama: 'Gaji pokok', jumlah: 0 }, { nama: 'Uang Makan', j
 let slipPengurangan = [{ nama: 'PPH 21', jumlah: 0 }, { nama: 'BPJS Kesehatan', jumlah: 0 }];
 let slipLogoDataUrl = '';
 let slipGajiTerinit = false;
+let slipDaftarTersimpan = [];
 
 function initSlipGaji() {
   renderSlipItemRows();
-  // Prefill hanya kalau field masih kosong, supaya tidak menimpa isian admin
-  // yang sedang diketik saat pindah-pindah subtab lalu balik lagi ke sini.
-  const elNamaPerusahaan = document.getElementById('slip-nama-perusahaan');
-  if (!elNamaPerusahaan.value && namaKlienAktif) elNamaPerusahaan.value = namaKlienAktif;
   if (logoKlienAktif && !slipLogoDataUrl) {
     slipLogoDataUrl = logoKlienAktif;
     const preview = document.getElementById('slip-logo-preview');
@@ -1680,11 +1684,14 @@ function initSlipGaji() {
     const now = new Date();
     elBulan.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   }
-  // Daftar nama karyawan untuk saran (datalist) - ambil dari cache "Karyawan"
-  // yang sudah dimuat (subtab Karyawan selalu dibuka duluan saat tab Kelola
-  // Data pertama kali aktif), jadi tidak perlu fetch ulang ke server di sini.
-  const dl = document.getElementById('slip-daftar-karyawan');
-  dl.innerHTML = (kelolaCache.karyawan || []).map(k => '<option value="' + escAttrSlip(k.nama) + '">').join('');
+  // Nama Karyawan dikunci ke akun yang benar-benar terdaftar (bukan ketik
+  // bebas) - pilihannya diambil dari cache "Karyawan" yang sudah dimuat
+  // (subtab Karyawan selalu dibuka duluan saat tab Kelola Data pertama aktif).
+  const selKaryawan = document.getElementById('slip-nama-karyawan');
+  const nilaiTerpilih = selKaryawan.value;
+  selKaryawan.innerHTML = '<option value="">Pilih karyawan...</option>' +
+    (kelolaCache.karyawan || []).map(k => '<option value="' + escAttrSlip(k.id) + '">' + escHtmlSlip(k.nama) + '</option>').join('');
+  if (nilaiTerpilih) selKaryawan.value = nilaiTerpilih;
   if (!slipGajiTerinit) {
     document.getElementById('slip-logo-input').addEventListener('change', async (e) => {
       const file = e.target.files[0];
@@ -1701,6 +1708,70 @@ function initSlipGaji() {
     });
     slipGajiTerinit = true;
   }
+  muatDaftarSlipGajiTersimpan();
+}
+
+function karyawanTerpilihSlip() {
+  const id = document.getElementById('slip-nama-karyawan').value;
+  return (kelolaCache.karyawan || []).find(k => k.id === id) || null;
+}
+function pilihSlipKaryawan() {
+  const k = karyawanTerpilihSlip();
+  document.getElementById('slip-id-karyawan').value = k ? (k.idKaryawan || '-') : '';
+}
+
+async function muatDaftarSlipGajiTersimpan() {
+  const tbody = document.getElementById('slip-daftar-tersimpan');
+  const res = await api('getDaftarSlipGajiAdmin', { password: adminPassword });
+  if (!res.sukses) { tbody.innerHTML = '<tr><td colspan="6" class="muted">' + res.pesan + '</td></tr>'; return; }
+  slipDaftarTersimpan = res.daftar || [];
+  tbody.innerHTML = slipDaftarTersimpan.length
+    ? slipDaftarTersimpan.map(d =>
+        '<tr>' +
+          '<td>' + escHtmlSlip(d.namaKaryawan || '-') + '</td>' +
+          '<td class="mono">' + escHtmlSlip(d.idKaryawan || '-') + '</td>' +
+          '<td>' + escHtmlSlip(d.jabatan || '-') + '</td>' +
+          '<td>' + escHtmlSlip(d.departemen || '-') + '</td>' +
+          '<td>' + (d.diubahPada ? new Date(d.diubahPada).toLocaleString('id-ID') : '-') + '</td>' +
+          '<td class="action-cell"><button class="btn btn-outline btn-sm" onclick="editSlipGaji(\'' + d.id + '\')">Edit</button></td>' +
+        '</tr>'
+      ).join('')
+    : '<tr><td colspan="6" class="muted">Belum ada pengaturan tersimpan.</td></tr>';
+}
+
+function editSlipGaji(id) {
+  const d = slipDaftarTersimpan.find(x => x.id === id);
+  if (!d) return;
+  document.getElementById('slip-nama-karyawan').value = d.karyawanId;
+  pilihSlipKaryawan();
+  document.getElementById('slip-jabatan').value = d.jabatan || 'Anggota';
+  document.getElementById('slip-departemen').value = d.departemen || 'Keamanan';
+  document.getElementById('slip-catatan').value = d.catatan || '';
+  document.getElementById('slip-disetujui-nama').value = d.disetujuiNama || 'Bayu Brawarso';
+  document.getElementById('slip-disetujui-jabatan').value = d.disetujuiJabatan || 'HR Manager';
+  slipPendapatan = (d.pendapatan && d.pendapatan.length) ? d.pendapatan : [{ nama: 'Gaji pokok', jumlah: 0 }, { nama: 'Uang Makan', jumlah: 0 }];
+  slipPengurangan = (d.pengurangan && d.pengurangan.length) ? d.pengurangan : [{ nama: 'PPH 21', jumlah: 0 }, { nama: 'BPJS Kesehatan', jumlah: 0 }];
+  renderSlipItemRows();
+  showToast('Pengaturan "' + (d.namaKaryawan || '') + '" dimuat ke form.', true);
+  document.getElementById('slip-nama-karyawan').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function simpanSlipGaji() {
+  const k = karyawanTerpilihSlip();
+  if (!k) return showToast('Pilih karyawan terlebih dahulu.', false);
+  const res = await api('simpanSlipGajiAdmin', {
+    password: adminPassword,
+    karyawanId: k.id,
+    jabatan: document.getElementById('slip-jabatan').value,
+    departemen: document.getElementById('slip-departemen').value,
+    pendapatan: slipPendapatan,
+    pengurangan: slipPengurangan,
+    catatan: document.getElementById('slip-catatan').value.trim(),
+    disetujuiNama: document.getElementById('slip-disetujui-nama').value.trim(),
+    disetujuiJabatan: document.getElementById('slip-disetujui-jabatan').value.trim()
+  });
+  showToast(res.pesan, res.sukses);
+  if (res.sukses) muatDaftarSlipGajiTersimpan();
 }
 
 function renderSlipItemRows() {
@@ -1737,15 +1808,14 @@ function formatTanggalIndoSlip(isoDate) {
 
 function renderSlipPreview() {
   const namaPerusahaan = document.getElementById('slip-nama-perusahaan').value.trim() || 'Nama Perusahaan';
-  const idPerusahaan = document.getElementById('slip-id-perusahaan').value.trim();
   const bulanVal = document.getElementById('slip-bulan').value;
   const bulanText = bulanVal ? (NAMA_BULAN[parseInt(bulanVal.split('-')[1], 10) - 1] + ' ' + bulanVal.split('-')[0]) : '-';
 
-  const namaKaryawan = document.getElementById('slip-nama-karyawan').value.trim() || '-';
+  const karyawanTerpilih = karyawanTerpilihSlip();
+  const namaKaryawan = karyawanTerpilih ? karyawanTerpilih.nama : '-';
   const idKaryawan = document.getElementById('slip-id-karyawan').value.trim();
   const jabatan = document.getElementById('slip-jabatan').value;
   const departemen = document.getElementById('slip-departemen').value;
-  const golongan = document.getElementById('slip-golongan').value.trim();
   const cutoff = document.getElementById('slip-cutoff').value.trim();
   const tglBayarVal = document.getElementById('slip-tgl-bayar').value;
   const tglBayar = tglBayarVal ? formatTanggalIndoSlip(tglBayarVal) : '-';
@@ -1764,8 +1834,7 @@ function renderSlipPreview() {
     '<div class="slip-sheet-head">' +
       '<div class="slip-sheet-brand">' +
         (slipLogoDataUrl ? '<img src="' + slipLogoDataUrl + '" alt="Logo">' : '') +
-        '<div><div class="slip-sheet-nama-pt">' + escHtmlSlip(namaPerusahaan) + '</div>' +
-        (idPerusahaan ? '<div class="muted">' + escHtmlSlip(idPerusahaan) + '</div>' : '') + '</div>' +
+        '<div class="slip-sheet-nama-pt">' + escHtmlSlip(namaPerusahaan) + '</div>' +
       '</div>' +
       '<div style="text-align:right;">' +
         '<div class="muted">Slip gaji untuk bulan</div>' +
@@ -1775,7 +1844,6 @@ function renderSlipPreview() {
     '<div class="slip-sheet-section-title">Rincian karyawan</div>' +
     '<div class="slip-sheet-grid2">' +
       '<div><span>Nama karyawan</span><span>' + escHtmlSlip(namaKaryawan) + '</span></div>' +
-      '<div><span>Golongan</span><span>' + escHtmlSlip(golongan || '-') + '</span></div>' +
       '<div><span>ID karyawan</span><span>' + escHtmlSlip(idKaryawan || '-') + '</span></div>' +
       '<div><span>Payroll cut off</span><span>' + escHtmlSlip(cutoff || '-') + '</span></div>' +
       '<div><span>Jabatan</span><span>' + escHtmlSlip(jabatan) + '</span></div>' +
