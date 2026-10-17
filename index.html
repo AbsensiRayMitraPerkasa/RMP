@@ -329,17 +329,17 @@
     position:fixed; inset:0; background:rgba(15,25,40,.55); z-index:60;
     display:flex; align-items:flex-end; justify-content:center;
   }
-  /* html2canvas menghitung posisi elemen jadi salah kalau ada leluhur
-     position:fixed (sama seperti kasus position:sticky di admin.html) -
-     sesaat sebelum capture PDF, overlay dilepas jadi static supaya tidak
-     ikut membuat offset/pemotongan yang salah (lihat unduhSlipGajiPdf). */
-  .modal-overlay.slip-pdf-capturing{position:static; display:block; background:none;}
   .modal-sheet{
     background:var(--card); width:100%; max-width:480px; border-radius:20px 20px 0 0;
     padding:14px 16px calc(16px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto;
   }
-  .modal-sheet.slip-pdf-capturing{max-height:none; overflow:visible;}
   .modal-sheet h3{font-size:15px; margin-bottom:9px;}
+  /* Capture PDF slip gaji TIDAK dilakukan langsung dari elemen yang tampil di
+     modal (leluhurnya position:fixed + overflow-y:auto bikin html2canvas
+     salah hitung ukuran/posisi, sudah terbukti 2x gagal walau sudah dilepas
+     sementara). Isinya disalin ke kontainer biasa di luar layar ini dulu -
+     tanpa leluhur fixed/sticky/overflow apapun - baru itu yang di-capture. */
+  .slip-pdf-offscreen{position:fixed; left:-9999px; top:0; width:400px; background:#fff; padding:18px;}
 
 
   .navbar{
@@ -1462,29 +1462,28 @@ document.getElementById('btn-unduh-slipgaji-pdf').addEventListener('click', () =
   const btn = document.getElementById('btn-unduh-slipgaji-pdf');
   const labelAsli = btn.textContent;
   btn.disabled = true; btn.textContent = 'Membuat PDF...';
-  const el = document.getElementById('home-slipgaji');
-  const modalSheet = el.closest('.modal-sheet');
-  const modalOverlay = document.getElementById('modal-slipgaji');
-  // Modal ini position:fixed (overlay) di dalam position:fixed + overflow-y:auto
-  // dengan tinggi dibatasi (sheet, 88vh). html2canvas salah hitung posisi
-  // elemen yang leluhurnya position:fixed (sama kasusnya dengan sticky di
-  // admin.html) dan defaultnya cuma menangkap bagian yang kelihatan di layar,
-  // jadi kepotong kalau isinya lebih panjang. Lepas semua batasan itu dulu +
-  // paksa ukuran capture ke ukuran konten asli, baru kembalikan setelah selesai.
-  modalOverlay.classList.add('slip-pdf-capturing');
-  modalSheet.classList.add('slip-pdf-capturing');
-  modalSheet.scrollTop = 0;
-  window.scrollTo(0, 0);
-  const beresin = () => { modalOverlay.classList.remove('slip-pdf-capturing'); modalSheet.classList.remove('slip-pdf-capturing'); };
+  // Capture langsung dari elemen yang tampil di modal TERBUKTI gagal 2x
+  // (leluhurnya position:fixed bikin html2canvas salah hitung posisi/ukuran,
+  // bagian kiri konten malah hilang di percobaan kedua). Salin isinya ke
+  // kontainer polos di luar layar dulu (lihat .slip-pdf-offscreen) - tanpa
+  // leluhur fixed/sticky/overflow apapun - baru itu yang di-capture.
+  let offscreen = document.getElementById('slip-pdf-offscreen');
+  if (!offscreen) {
+    offscreen = document.createElement('div');
+    offscreen.id = 'slip-pdf-offscreen';
+    offscreen.className = 'slip-pdf-offscreen';
+    document.body.appendChild(offscreen);
+  }
+  offscreen.innerHTML = document.getElementById('home-slipgaji').innerHTML;
   html2pdf().set({
     margin: 10,
     filename: namaFile,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: el.scrollWidth, windowHeight: el.scrollHeight },
+    html2canvas: { scale: 2, useCORS: true },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  }).from(el).save()
-    .then(() => { beresin(); btn.disabled = false; btn.textContent = labelAsli; })
-    .catch(() => { beresin(); btn.disabled = false; btn.textContent = labelAsli; showToast('Gagal membuat PDF.', false); });
+  }).from(offscreen).save()
+    .then(() => { offscreen.remove(); btn.disabled = false; btn.textContent = labelAsli; })
+    .catch(() => { offscreen.remove(); btn.disabled = false; btn.textContent = labelAsli; showToast('Gagal membuat PDF.', false); });
 });
 
 let presensiJenis = null, presensiFotoB64 = null;
