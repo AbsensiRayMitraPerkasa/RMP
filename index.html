@@ -58,6 +58,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=JetBrains&#43;Mono:wght@400;700&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" defer></script>
 <style>
   :root{
@@ -567,6 +568,7 @@
   <div class="modal-sheet">
     <h3>💰 Slip Gaji</h3>
     <div id="home-slipgaji"><div class="empty-state">Memuat...</div></div>
+    <button class="btn btn-navy hidden" id="btn-unduh-slipgaji-pdf">Unduh PDF</button>
     <button class="btn btn-outline" id="btn-tutup-slipgaji">Tutup</button>
   </div>
 </div>
@@ -1383,11 +1385,15 @@ function escHtmlSlip(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;
 function formatRpSlip(n) { return 'Rp' + (n || 0).toLocaleString('id-ID'); }
 const SLIP_NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
+let slipGajiSayaTerakhir = null;
 async function muatSlipGajiInline() {
   const box = document.getElementById('home-slipgaji');
   box.innerHTML = '<div class="empty-state">Memuat...</div>';
+  document.getElementById('btn-unduh-slipgaji-pdf').classList.add('hidden');
   const res = await api('ambilSlipGajiSaya', { nama: sesi.nama, pin: sesi.pin });
   if (!res.sukses) { box.innerHTML = '<div class="empty-state">' + escHtmlSlip(res.pesan) + '</div>'; return; }
+  slipGajiSayaTerakhir = res;
+  document.getElementById('btn-unduh-slipgaji-pdf').classList.remove('hidden');
 
   const baris = (arr) => (arr || []).map(it => '<tr><td>' + escHtmlSlip(it.nama || '-') + '</td><td class="num">' + formatRpSlip(it.jumlah) + '</td></tr>').join('');
   const totalPendapatan = (res.pendapatan || []).reduce((s, it) => s + (it.jumlah || 0), 0);
@@ -1438,6 +1444,23 @@ document.getElementById('btn-slipgaji').addEventListener('click', () => {
 });
 document.getElementById('btn-tutup-slipgaji').addEventListener('click', () => {
   document.getElementById('modal-slipgaji').classList.add('hidden');
+});
+document.getElementById('btn-unduh-slipgaji-pdf').addEventListener('click', () => {
+  if (!slipGajiSayaTerakhir) return;
+  const namaFile = 'Slip_Gaji_' + String(slipGajiSayaTerakhir.nama || 'Saya').replace(/[^a-zA-Z0-9]+/g, '_') +
+    '_' + SLIP_NAMA_BULAN[slipGajiSayaTerakhir.bulan - 1] + slipGajiSayaTerakhir.tahun + '.pdf';
+  const btn = document.getElementById('btn-unduh-slipgaji-pdf');
+  const labelAsli = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Membuat PDF...';
+  html2pdf().set({
+    margin: 10,
+    filename: namaFile,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  }).from(document.getElementById('home-slipgaji')).save()
+    .then(() => { btn.disabled = false; btn.textContent = labelAsli; })
+    .catch(() => { btn.disabled = false; btn.textContent = labelAsli; showToast('Gagal membuat PDF.', false); });
 });
 
 let presensiJenis = null, presensiFotoB64 = null;
