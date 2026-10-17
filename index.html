@@ -212,7 +212,9 @@
   .slip-sheet-bottom>div{flex:1 1 120px;}
   .slip-sheet-ttd-space{height:34px;}
   .slip-sheet-ttd-nama{font-weight:700; font-size:13px;}
-  .slip-sheet-footer{margin-top:18px; padding-top:10px; border-top:1px solid var(--border); font-size:10px; text-align:left;}
+  .slip-sheet-footer{display:flex; align-items:center; gap:7px; margin-top:18px; padding-top:10px; border-top:1px solid var(--border); font-size:10px; text-align:left; color:var(--muted);}
+  .slip-sheet-footer img{width:18px; height:18px; object-fit:contain; border-radius:4px; flex-shrink:0;}
+  .slip-sheet-footer-brand{color:var(--navy); font-weight:700;}
 
    
   .id-row{display:flex; align-items:center; gap:10px;}
@@ -1440,7 +1442,11 @@ async function muatSlipGajiInline() {
       '<div><div class="muted" style="font-size:11px;">Disetujui oleh:</div><div class="slip-sheet-ttd-space"></div><div class="slip-sheet-ttd-nama">' + escHtmlSlip(res.disetujuiNama || '-') + '</div><div class="muted" style="font-size:11px;">' + escHtmlSlip(res.disetujuiJabatan || '') + '</div></div>' +
       '<div><div class="muted" style="font-size:11px;">Diterima oleh:</div><div class="slip-sheet-ttd-space"></div><div class="slip-sheet-ttd-nama">' + escHtmlSlip(res.nama) + '</div><div class="muted" style="font-size:11px;">' + escHtmlSlip(res.jabatan) + '</div></div>' +
     '</div>' +
-    '<div class="slip-sheet-footer">Rincian ini mengikuti pengaturan terbaru dari admin, bukan arsip tercetak.</div>';
+    '<div class="slip-sheet-footer">' +
+      '<img src="icon-192.png" alt="Logo RAY">' +
+      '<div><div>Slip gaji ini dibuat dengan aplikasi <b class="slip-sheet-footer-brand">Ray-One Payslip Generator</b></div>' +
+      '<div>Jika terjadi kesalahan nominal bisa menghubungi Admin</div></div>' +
+    '</div>';
 }
 document.getElementById('btn-slipgaji').addEventListener('click', () => {
   document.getElementById('modal-slipgaji').classList.remove('hidden');
@@ -1456,6 +1462,24 @@ document.getElementById('btn-tutup-slipgaji').addEventListener('click', () => {
 // jsPDF (teks & kotak asli), independen dari tampilan modal - hasilnya file
 // tersendiri yang mengikuti layout template (Pendapatan/Pengurangan
 // berjejer), sementara tampilan di HP tetap seperti sekarang (tidak diubah).
+let logoRayBase64Cache = '';
+function muatLogoRayBase64() {
+  if (logoRayBase64Cache) return Promise.resolve(logoRayBase64Cache);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        logoRayBase64Cache = canvas.toDataURL('image/png');
+        resolve(logoRayBase64Cache);
+      } catch (e) { resolve(''); }
+    };
+    img.onerror = () => resolve('');
+    img.src = 'icon-192.png';
+  });
+}
 function gambarSlipGajiPdf(data) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
@@ -1562,24 +1586,37 @@ function gambarSlipGajiPdf(data) {
 
   doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]);
   doc.line(kiri, y, kanan, y);
-  y += 5;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-  doc.text(data.footerText || '', kiri, y);
+  y += 6;
+
+  // Logo RAY (sama seperti di header aplikasi, icon-192.png) + teks branding
+  // "Ray-One Payslip Generator" tebal-biru, baris kedua keterangan kontak admin.
+  const ukuranLogo = 8;
+  let xTeks = kiri;
+  if (data.logoRayBase64) {
+    try { doc.addImage(data.logoRayBase64, 'PNG', kiri, y - 5.5, ukuranLogo, ukuranLogo); xTeks = kiri + ukuranLogo + 3; } catch (e) {}
+  }
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text('Slip gaji ini dibuat dengan aplikasi ', xTeks, y);
+  const lebarAwalFooter = doc.getTextWidth('Slip gaji ini dibuat dengan aplikasi ');
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.text('Ray-One Payslip Generator', xTeks + lebarAwalFooter, y);
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text('Jika terjadi kesalahan nominal bisa menghubungi Admin', xTeks, y + 4.5);
 
   return doc;
 }
 
-document.getElementById('btn-unduh-slipgaji-pdf').addEventListener('click', () => {
+document.getElementById('btn-unduh-slipgaji-pdf').addEventListener('click', async () => {
   if (!slipGajiSayaTerakhir) return;
   const d = slipGajiSayaTerakhir;
   const bulanText = SLIP_NAMA_BULAN[d.bulan - 1] + ' ' + d.tahun;
+  const logoRayBase64 = await muatLogoRayBase64();
   const doc = gambarSlipGajiPdf({
     namaPerusahaan: 'PT. Ray Mitra Perkasa - Soerojo Hospital',
     bulanText,
     namaKaryawan: d.nama, idKaryawan: d.idKaryawan, jabatan: d.jabatan, departemen: d.departemen,
     pendapatan: d.pendapatan, pengurangan: d.pengurangan,
-    catatan: d.catatan, disetujuiNama: d.disetujuiNama, disetujuiJabatan: d.disetujuiJabatan,
-    footerText: 'Rincian ini mengikuti pengaturan terbaru dari admin, bukan arsip tercetak.'
+    catatan: d.catatan, disetujuiNama: d.disetujuiNama, disetujuiJabatan: d.disetujuiJabatan, logoRayBase64
   });
   const namaFile = 'Slip_Gaji_' + String(d.nama || 'Saya').replace(/[^a-zA-Z0-9]+/g, '_') + '_' + SLIP_NAMA_BULAN[d.bulan - 1] + d.tahun + '.pdf';
   doc.save(namaFile);
