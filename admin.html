@@ -462,7 +462,7 @@
         <button data-sub="tugas">Tugas Kebersihan</button>
         <button data-sub="jamkerja">Jam Kerja</button>
         <button data-sub="qrweb">QR Akses Web</button>
-        <button data-sub="slipgaji">Slip Gaji</button>
+        <button data-sub="slipgaji" id="tab-sub-slipgaji" class="hidden">Slip Gaji</button>
       </div>
       <div id="grp-kelola">
         <div data-sub-panel="karyawan" id="sub-karyawan"></div>
@@ -631,6 +631,11 @@
 const API_URL = 'https://rxmjsvzkciwgpdatgqkd.supabase.co/functions/v1/api';
 const SUPABASE_ANON_KEY = 'sb_publishable_Pd8aIKqO_vo-tZIm1ndvdg_yDlqVu40';
 const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
+// Menu Slip Gaji baru dipakai klien SOEROJO HOSPITAL, sembunyikan untuk klien lain.
+const KLIEN_SLIP_GAJI_DIIZINKAN = ['soerojo-hospital'];
+if (KLIEN_SLIP_GAJI_DIIZINKAN.includes(KODE_KLIEN)) {
+  document.getElementById('tab-sub-slipgaji').classList.remove('hidden');
+}
 // Link "Admin Klien" dari Super Admin membawa ?akses=klien. Dengan ini
 // dikirim ke server, password Admin Ray (ADMIN_PASSWORD) tidak akan pernah
 // diterima lewat link ini, jadi link yang dipegang klien tidak bisa dipakai
