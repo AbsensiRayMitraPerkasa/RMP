@@ -674,7 +674,7 @@
   <!-- ===== TINGKAT ANGGOTA: Bagian A-G ===== -->
   <div id="kejadian-view-anggota" class="hidden">
     <div class="card">
-      <div class="section-lbl">Riwayat Laporan Saya</div>
+      <div class="section-lbl">Riwayat Laporan Kejadian</div>
       <select id="kj-anggota-pilih"><option value="">Memuat daftar laporan...</option></select>
       <button type="button" class="btn btn-outline" id="btn-anggota-cetak">Lihat / Cetak PDF</button>
     </div>
@@ -773,7 +773,7 @@
   <!-- ===== TINGKAT DANRU: Bagian H-I ===== -->
   <div id="kejadian-view-danru" class="hidden">
     <div class="card">
-      <div class="section-lbl">Pilih Laporan Menunggu Verifikasi</div>
+      <div class="section-lbl">Riwayat Laporan Kejadian</div>
       <select id="kj-danru-pilih"><option value="">Memuat daftar laporan...</option></select>
       <div class="btn-row">
         <button type="button" class="btn btn-outline" id="btn-danru-muat">Muat Detail</button>
@@ -830,7 +830,7 @@
   <!-- ===== TINGKAT KOORDINATOR: Bagian J-K ===== -->
   <div id="kejadian-view-koordinator" class="hidden">
     <div class="card">
-      <div class="section-lbl">Pilih Laporan Terverifikasi Danru</div>
+      <div class="section-lbl">Riwayat Laporan Kejadian</div>
       <select id="kj-koord-pilih"><option value="">Memuat daftar laporan...</option></select>
       <div class="btn-row">
         <button type="button" class="btn btn-outline" id="btn-koord-muat">Muat Detail</button>
@@ -2377,7 +2377,7 @@ async function kjMuatDaftar(selectId) {
   const res = await api('daftarLaporanKejadianSaya', { nama: sesi.nama, pin: sesi.pin });
   const daftar = res.daftar || [];
   sel.innerHTML = '<option value="">-- Pilih Nomor Kejadian --</option>' +
-    daftar.map(d => '<option value="' + d.nomorKejadian + '">' + d.nomorKejadian + ' — ' + (d.lokasi || '-') + '</option>').join('');
+    daftar.map(d => '<option value="' + d.nomorKejadian + '">' + d.nomorKejadian + ' — ' + (d.lokasi || '-') + ' (' + (d.status || '-') + ')</option>').join('');
 }
 function kjRingkasanHtml(l) {
   const baris = (label, val) => '<div style="margin-bottom:4px; font-size:13px;"><b>' + label + ':</b> ' + (val || '-') + '</div>';
@@ -2393,8 +2393,14 @@ document.getElementById('btn-danru-muat').addEventListener('click', async () => 
   const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
   if (!res.sukses) return showToast(res.pesan, false);
   kejadianState.nomorAktif = nomor; kejadianState.laporanAktif = res.laporan;
-  document.getElementById('kj-danru-ringkasan').innerHTML = kjRingkasanHtml(res.laporan);
-  document.getElementById('kj-danru-ringkasan').classList.remove('hidden');
+  const ringkasanDanru = document.getElementById('kj-danru-ringkasan');
+  ringkasanDanru.innerHTML = kjRingkasanHtml(res.laporan);
+  ringkasanDanru.classList.remove('hidden');
+  if (res.laporan.status !== 'Menunggu Verifikasi Danru') {
+    document.getElementById('kj-danru-form').classList.add('hidden');
+    ringkasanDanru.innerHTML += '<div style="color:var(--muted); font-size:12.5px; margin-top:8px;">Laporan ini sudah bukan status "Menunggu Verifikasi Danru" (statusnya: ' + (res.laporan.status || '-') + '), jadi tidak bisa diisi/diverifikasi ulang di sini. Gunakan tombol Cetak PDF untuk melihat isinya.</div>';
+    return;
+  }
   document.getElementById('kj-danru-form').classList.remove('hidden');
   document.getElementById('kj-waktuTerimaDanru').value = ''; document.getElementById('kj-waktuTibaDanru').value = '';
   document.getElementById('kj-klasifikasiDanru').value = res.laporan.levelAwal || '';
@@ -2464,8 +2470,14 @@ document.getElementById('btn-koord-muat').addEventListener('click', async () => 
   const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
   if (!res.sukses) return showToast(res.pesan, false);
   kejadianState.nomorAktif = nomor; kejadianState.laporanAktif = res.laporan;
-  document.getElementById('kj-koord-ringkasan').innerHTML = kjRingkasanHtml(res.laporan);
-  document.getElementById('kj-koord-ringkasan').classList.remove('hidden');
+  const ringkasanKoord = document.getElementById('kj-koord-ringkasan');
+  ringkasanKoord.innerHTML = kjRingkasanHtml(res.laporan);
+  ringkasanKoord.classList.remove('hidden');
+  if (res.laporan.status !== 'Terverifikasi Danru') {
+    document.getElementById('kj-koord-form').classList.add('hidden');
+    ringkasanKoord.innerHTML += '<div style="color:var(--muted); font-size:12.5px; margin-top:8px;">Laporan ini sudah bukan status "Terverifikasi Danru" (statusnya: ' + (res.laporan.status || '-') + '), jadi tidak bisa ditelaah ulang di sini. Gunakan tombol Cetak PDF untuk melihat isinya.</div>';
+    return;
+  }
   document.getElementById('kj-koord-form').classList.remove('hidden');
   document.getElementById('kj-levelFinal').value = res.laporan.klasifikasiDanru || res.laporan.levelAwal || '';
   document.getElementById('kj-investigasi').value = 'Tidak diperlukan'; document.getElementById('kj-investigasi_lainnya').classList.add('hidden');
