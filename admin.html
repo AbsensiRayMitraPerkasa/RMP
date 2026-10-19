@@ -1039,7 +1039,7 @@ async function muatDashboardKejadian() {
   document.getElementById('kejadian-stats').innerHTML =
     statTile(kpi.total, 'Total Laporan') +
     statTile(kpi.perStatus['Menunggu Verifikasi Danru'] || 0, 'Menunggu Danru') +
-    statTile(kpi.perStatus['Terverifikasi Danru'] || 0, 'Menunggu Koordinator') +
+    statTile(kpi.perStatus['Terverifikasi Danru'] || 0, 'Menunggu Danton') +
     statTile(kpi.perStatus['Selesai'] || 0, 'Selesai') +
     statTile(kpi.perLevel['Merah'] || 0, 'Level Merah');
 }
@@ -1332,18 +1332,18 @@ async function kjGambarPdfAdmin(l, tingkat) {
       (l.tindakanDanru || []).map((t, i) => [String(i + 1), t.waktu || '-', t.isi || '-']));
 
     judul('I. ESKALASI DAN SERAH-TERIMA DANRU');
-    baris2Kolom('Koordinator', 'Nama: ' + (l.namaKoordEskalasi || '-') + '\nWaktu: ' + (l.waktuKoordEskalasi || '-') + '\nArahan: ' + (l.arahanKoordEskalasi || '-'),
+    baris2Kolom('Komandan Peleton (Danton)', 'Nama: ' + (l.namaKoordEskalasi || '-') + '\nWaktu: ' + (l.waktuKoordEskalasi || '-') + '\nArahan: ' + (l.arahanKoordEskalasi || '-'),
       'PIC/Manajemen', 'Nama: ' + (l.namaPicEskalasi || '-') + '\nWaktu: ' + (l.waktuPicEskalasi || '-') + '\nArahan: ' + (l.arahanPicEskalasi || '-'));
     checklistBaris('Eksternal dihubungi', ['Tidak ada', 'Polisi', 'Damkar', 'Medis', { val: 'Lainnya', label: 'Lainnya' }], l.eksternalEskalasi);
     baris2Kolom('No. laporan/petugas eksternal', l.noLaporanEksternal, null, null);
     checklistBaris('Status bukti/CCTV', ['Sudah diamankan', 'Proses', 'Tidak ada', { val: 'Lainnya', label: 'Terkendala' }], l.statusBukti);
     signatureRow([
       { judul: 'Danru/Pemeriksa awal', nama: l.namaDanruAkhir, waktu: kjFmtWaktu(l.waktuSerahDanru) },
-      { judul: 'Koordinator penerima kendali', nama: l.namaKoordEskalasi, waktu: '-' },
+      { judul: 'Danton penerima kendali', nama: l.namaKoordEskalasi, waktu: '-' },
     ]);
   }
   if (tingkat === 'A-K') {
-    judul('J. TELAAH DAN KEPUTUSAN KOORDINATOR');
+    judul('J. TELAAH DAN KEPUTUSAN KOMANDAN PELETON');
     checklistBaris('Level final sementara', ['Merah', 'Oranye', 'Kuning', 'Hijau'], l.levelFinal);
     checklistBaris('Investigasi internal', ['Tidak diperlukan', { val: 'Lainnya', label: 'Diperlukan' }], l.investigasi);
     checklistBaris('SO/rekonsiliasi', ['Tidak', { val: 'Lainnya', label: 'Ya' }], l.rekonsiliasi);
@@ -1351,13 +1351,13 @@ async function kjGambarPdfAdmin(l, tingkat) {
     checklistBaris('Pelaporan eksternal', ['Tidak', 'Polisi', 'Damkar', 'K3', { val: 'Lainnya', label: 'Lainnya' }], l.pelaporanEks);
     checklistBaris('Pengamanan lanjutan', ['Tidak ada', 'Tambah personel', 'Tutup area', 'Simpan bukti', 'Pantau CCTV', { val: 'Lainnya', label: 'Lainnya' }], l.pengamananLanjut);
     checklistBaris('LHII', ['Tidak', 'Awal 1x24 jam', 'Final 3x24 jam', { val: 'Lainnya', label: 'Tenggat lain' }], l.lhii);
-    baris2Kolom('Catatan koordinator', l.catatanKoord, null, null);
+    baris2Kolom('Catatan Danton', l.catatanKoord, null, null);
 
     judul('K. DISTRIBUSI DAN STATUS');
     baris2Kolom('Distribusi', l.distribusiLaporan, null, null);
     checklistBaris('Status laporan', ['Terkendali/monitor', 'Investigasi berjalan', 'Diserahkan pihak berwenang', 'Siap ditutup'], l.statusAkhirLaporan);
     signatureRow([
-      { judul: 'Koordinator Satpam', nama: l.namaTtdKoord, waktu: kjFmtWaktu(l.waktuTtdKoord) },
+      { judul: 'Komandan Peleton Satpam', nama: l.namaTtdKoord, waktu: kjFmtWaktu(l.waktuTtdKoord) },
       { judul: 'PIC/Pejabat pengguna jasa', nama: l.namaTtdPic, waktu: '-' },
       { judul: 'Penerima lain (bila ada)', nama: l.namaTtdLain, waktu: '-' },
     ]);
@@ -1581,7 +1581,7 @@ const ENTITAS_KELOLA = {
       // Keduanya dipakai karyawan sendiri untuk melihat slip gajinya lewat
       // index.html (cocokkan ke template Pengaturan Slip Gaji yang sesuai).
       ...(KLIEN_SLIP_GAJI_DIIZINKAN.includes(KODE_KLIEN) ? [
-        { key: 'jabatan', label: 'Jabatan', type: 'select', options: ['Komandan Peleton (Danton)', 'Wakil Komandan Peleton (Wadanton)', 'Komandan Regu (Danru)', 'Koordinator', 'Anggota'] },
+        { key: 'jabatan', label: 'Jabatan', type: 'select', options: ['Komandan Peleton (Danton)', 'Wakil Komandan Peleton (Wadanton)', 'Komandan Regu (Danru)', 'Anggota'] },
         { key: 'departemen', label: 'Departemen', type: 'select', options: ['Keamanan', 'Kebersihan', 'Administrasi', 'Pengemudi'] }
       ] : []),
       { key: 'pin', label: 'PIN (4 digit)', type: 'text' }

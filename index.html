@@ -806,8 +806,8 @@
       </div>
       <div class="card">
         <div class="section-lbl">I. ESKALASI DAN SERAH-TERIMA DANRU</div>
-        <div class="dyn-box"><div class="dyn-box-title">Laporan ke Koordinator</div>
-          <div class="grid-2"><input type="text" id="kj-namaKoordEskalasi" placeholder="Nama Koordinator"><input type="time" id="kj-waktuKoordEskalasi"></div>
+        <div class="dyn-box"><div class="dyn-box-title">Laporan ke Komandan Peleton (Danton)</div>
+          <div class="grid-2"><input type="text" id="kj-namaKoordEskalasi" placeholder="Nama Danton"><input type="time" id="kj-waktuKoordEskalasi"></div>
           <input type="text" id="kj-arahanKoordEskalasi" placeholder="Arahan">
         </div>
         <div class="dyn-box"><div class="dyn-box-title">Laporan ke PIC/Manajemen</div>
@@ -821,7 +821,7 @@
         <label>Status Bukti / CCTV</label>
         <select id="kj-statusBukti" onchange="kjCekLainnya(this)"><option>Sudah diamankan</option><option>Proses</option><option>Tidak ada</option><option value="Lainnya">Terkendala</option></select>
         <input type="text" id="kj-statusBukti_lainnya" class="hidden" placeholder="Sebutkan kendalanya...">
-        <label>Waktu Serah ke Koordinator</label><input type="datetime-local" id="kj-waktuSerahDanru">
+        <label>Waktu Serah ke Danton</label><input type="datetime-local" id="kj-waktuSerahDanru">
         <button class="btn btn-soft-red" id="btn-kirim-kejadian-danru">Simpan Verifikasi Danru</button>
       </div>
     </div>
@@ -840,7 +840,7 @@
     <div id="kj-koord-ringkasan" class="card hidden"></div>
     <div id="kj-koord-form" class="hidden">
       <div class="card">
-        <div class="section-lbl">J. TELAAH DAN KEPUTUSAN KOORDINATOR</div>
+        <div class="section-lbl">J. TELAAH DAN KEPUTUSAN KOMANDAN PELETON</div>
         <div class="grid-2">
           <div><label>Level Final Sementara</label><select id="kj-levelFinal"><option value="">-- Pilih --</option><option>Merah</option><option>Oranye</option><option>Kuning</option><option>Hijau</option></select></div>
           <div><label>Investigasi Internal</label>
@@ -871,7 +871,7 @@
         <label>LHII (Laporan Hasil Investigasi Internal)</label>
         <select id="kj-lhii" onchange="kjCekLainnya(this)"><option>Tidak</option><option>Awal 1x24 jam</option><option>Final 3x24 jam</option><option value="Lainnya">Tenggat Lain</option></select>
         <input type="text" id="kj-lhii_lainnya" class="hidden" placeholder="Sebutkan tenggat waktu...">
-        <label>Catatan Koordinator</label><textarea id="kj-catatanKoord" rows="3"></textarea>
+        <label>Catatan Danton</label><textarea id="kj-catatanKoord" rows="3"></textarea>
       </div>
       <div class="card">
         <div class="section-lbl">K. DISTRIBUSI DAN STATUS</div>
@@ -882,7 +882,7 @@
           <div><label>PIC/Pejabat Pengguna Jasa</label><input type="text" id="kj-namaTtdPic"></div>
           <div><label>Penerima Lain (bila ada)</label><input type="text" id="kj-namaTtdLain"></div>
         </div>
-        <button class="btn btn-soft-red" id="btn-kirim-kejadian-koordinator">Simpan Telaah Koordinator</button>
+        <button class="btn btn-soft-red" id="btn-kirim-kejadian-koordinator">Simpan Telaah Danton</button>
         <button class="btn btn-outline" id="btn-koord-cetak-final">Cetak PDF Lengkap (A-K)</button>
       </div>
     </div>
@@ -2340,7 +2340,7 @@ function resetLaporanKejadianScreen() {
     document.getElementById('kj-danru-ringkasan').classList.add('hidden');
     document.getElementById('kj-danru-form').classList.add('hidden');
     kjMuatDaftar('kj-danru-pilih');
-  } else if (jab === 'Koordinator') {
+  } else if (jab === 'Komandan Peleton (Danton)') {
     document.getElementById('kejadian-view-koordinator').classList.remove('hidden');
     document.getElementById('kj-koord-ringkasan').classList.add('hidden');
     document.getElementById('kj-koord-form').classList.add('hidden');
@@ -2477,7 +2477,7 @@ document.getElementById('btn-koord-muat').addEventListener('click', async () => 
   document.getElementById('kj-catatanKoord').value = ''; document.getElementById('kj-distribusiLaporan').value = '';
   document.getElementById('kj-statusAkhirLaporan').value = 'Terkendali/monitor';
   document.getElementById('kj-namaTtdPic').value = ''; document.getElementById('kj-namaTtdLain').value = '';
-  const btn = document.getElementById('btn-kirim-kejadian-koordinator'); btn.disabled = false; btn.textContent = 'Simpan Telaah Koordinator';
+  const btn = document.getElementById('btn-kirim-kejadian-koordinator'); btn.disabled = false; btn.textContent = 'Simpan Telaah Danton';
 });
 document.getElementById('btn-koord-cetak').addEventListener('click', async () => {
   const nomor = document.getElementById('kj-koord-pilih').value;
@@ -2496,7 +2496,7 @@ document.getElementById('btn-kirim-kejadian-koordinator').addEventListener('clic
   const nomor = kejadianState.nomorAktif;
   if (!nomor) return showToast('Muat detail laporan dulu.', false);
   const btn = document.getElementById('btn-kirim-kejadian-koordinator');
-  setBusy(btn, true, 'Menyimpan...', 'Simpan Telaah Koordinator');
+  setBusy(btn, true, 'Menyimpan...', 'Simpan Telaah Danton');
   const res = await api('simpanLaporanKejadianKoordinator', {
     nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor,
     levelFinal: document.getElementById('kj-levelFinal').value,
@@ -2512,7 +2512,7 @@ document.getElementById('btn-kirim-kejadian-koordinator').addEventListener('clic
     namaTtdPic: document.getElementById('kj-namaTtdPic').value,
     namaTtdLain: document.getElementById('kj-namaTtdLain').value,
   });
-  setBusy(btn, false, '', 'Simpan Telaah Koordinator');
+  setBusy(btn, false, '', 'Simpan Telaah Danton');
   showToast(res.pesan, res.sukses);
   if (res.sukses) setTimeout(() => showScreen('home'), 1200);
 });
@@ -2823,18 +2823,18 @@ async function kjGambarPdf(l, tingkat) {
       (l.tindakanDanru || []).map((t, i) => [String(i + 1), t.waktu || '-', t.isi || '-']));
 
     judul('I. ESKALASI DAN SERAH-TERIMA DANRU');
-    baris2Kolom('Koordinator', 'Nama: ' + (l.namaKoordEskalasi || '-') + '\nWaktu: ' + (l.waktuKoordEskalasi || '-') + '\nArahan: ' + (l.arahanKoordEskalasi || '-'),
+    baris2Kolom('Komandan Peleton (Danton)', 'Nama: ' + (l.namaKoordEskalasi || '-') + '\nWaktu: ' + (l.waktuKoordEskalasi || '-') + '\nArahan: ' + (l.arahanKoordEskalasi || '-'),
       'PIC/Manajemen', 'Nama: ' + (l.namaPicEskalasi || '-') + '\nWaktu: ' + (l.waktuPicEskalasi || '-') + '\nArahan: ' + (l.arahanPicEskalasi || '-'));
     checklistBaris('Eksternal dihubungi', ['Tidak ada', 'Polisi', 'Damkar', 'Medis', { val: 'Lainnya', label: 'Lainnya' }], l.eksternalEskalasi);
     baris2Kolom('No. laporan/petugas eksternal', l.noLaporanEksternal, null, null);
     checklistBaris('Status bukti/CCTV', ['Sudah diamankan', 'Proses', 'Tidak ada', { val: 'Lainnya', label: 'Terkendala' }], l.statusBukti);
     signatureRow([
       { judul: 'Danru/Pemeriksa awal', nama: l.namaDanruAkhir, waktu: kjFmtWaktu(l.waktuSerahDanru) },
-      { judul: 'Koordinator penerima kendali', nama: l.namaKoordEskalasi, waktu: '-' },
+      { judul: 'Danton penerima kendali', nama: l.namaKoordEskalasi, waktu: '-' },
     ]);
   }
   if (tingkat === 'A-K') {
-    judul('J. TELAAH DAN KEPUTUSAN KOORDINATOR');
+    judul('J. TELAAH DAN KEPUTUSAN KOMANDAN PELETON');
     checklistBaris('Level final sementara', ['Merah', 'Oranye', 'Kuning', 'Hijau'], l.levelFinal);
     checklistBaris('Investigasi internal', ['Tidak diperlukan', { val: 'Lainnya', label: 'Diperlukan' }], l.investigasi);
     checklistBaris('SO/rekonsiliasi', ['Tidak', { val: 'Lainnya', label: 'Ya' }], l.rekonsiliasi);
@@ -2842,13 +2842,13 @@ async function kjGambarPdf(l, tingkat) {
     checklistBaris('Pelaporan eksternal', ['Tidak', 'Polisi', 'Damkar', 'K3', { val: 'Lainnya', label: 'Lainnya' }], l.pelaporanEks);
     checklistBaris('Pengamanan lanjutan', ['Tidak ada', 'Tambah personel', 'Tutup area', 'Simpan bukti', 'Pantau CCTV', { val: 'Lainnya', label: 'Lainnya' }], l.pengamananLanjut);
     checklistBaris('LHII', ['Tidak', 'Awal 1x24 jam', 'Final 3x24 jam', { val: 'Lainnya', label: 'Tenggat lain' }], l.lhii);
-    baris2Kolom('Catatan koordinator', l.catatanKoord, null, null);
+    baris2Kolom('Catatan Danton', l.catatanKoord, null, null);
 
     judul('K. DISTRIBUSI DAN STATUS');
     baris2Kolom('Distribusi', l.distribusiLaporan, null, null);
     checklistBaris('Status laporan', ['Terkendali/monitor', 'Investigasi berjalan', 'Diserahkan pihak berwenang', 'Siap ditutup'], l.statusAkhirLaporan);
     signatureRow([
-      { judul: 'Koordinator Satpam', nama: l.namaTtdKoord, waktu: kjFmtWaktu(l.waktuTtdKoord) },
+      { judul: 'Komandan Peleton Satpam', nama: l.namaTtdKoord, waktu: kjFmtWaktu(l.waktuTtdKoord) },
       { judul: 'PIC/Pejabat pengguna jasa', nama: l.namaTtdPic, waktu: '-' },
       { judul: 'Penerima lain (bila ada)', nama: l.namaTtdLain, waktu: '-' },
     ]);
