@@ -1077,6 +1077,14 @@ function kjFmtWaktu(iso) {
   const teks = d.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   return teks + ' WIB';
 }
+// Beri pemisah ribuan titik untuk nilai yang murni angka (mis. "Nilai
+// sementara" barang/aset); teks non-angka ditampilkan apa adanya.
+function kjFormatAngka(val) {
+  if (val == null || val === '') return '-';
+  const s = String(val).trim();
+  if (!/^\d+$/.test(s)) return s;
+  return s.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
 function kjMuatGambar(url) {
   return new Promise((resolve) => {
     if (!url) return resolve(null);
@@ -1240,7 +1248,7 @@ async function kjGambarPdfAdmin(l, tingkat) {
     }
   }
   function signatureRow(cols) {
-    const w = lebar / cols.length, h = 18;
+    const w = lebar / cols.length, h = 36; // +-4 baris kosong di bawah judul untuk tempat tanda tangan fisik
     cekPage(h + 1);
     doc.setDrawColor(190, 190, 190); doc.setLineWidth(0.2);
     cols.forEach((c, i) => {
@@ -1259,7 +1267,7 @@ async function kjGambarPdfAdmin(l, tingkat) {
   doc.text('LAPORAN KEJADIAN', kiri, y); y += 3;
   doc.setDrawColor(23, 56, 92); doc.setLineWidth(0.6); doc.line(kiri, y, kanan, y); y += 6;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
-  doc.text('PT. Ray Mitra Perkasa  —  Tingkat cetak: ' + tingkat, kiri, y); y += 7;
+  doc.text('PT. Ray Mitra Perkasa', kiri, y); y += 7;
 
   judul('A. IDENTITAS DAN KLASIFIKASI AWAL');
   baris2Kolom('Nomor kejadian', l.nomorKejadian, 'Tanggal laporan', kjFmtWaktu(l.dibuatPada));
@@ -1285,15 +1293,19 @@ async function kjGambarPdfAdmin(l, tingkat) {
   baris2Kolom('Bahaya saat serah-terima', l.bahayaSerahTerima, null, null);
 
   judul('E. KONDISI AKHIR — PIHAK TERLIBAT & ASET');
-  tabelBerulang(['No', 'Nama', 'Status/peran', 'Kontak/unit', 'Keterangan'], [0.06, 0.22, 0.2, 0.2, 0.32],
+  const kolomE = [0.06, 0.24, 0.22, 0.22, 0.26];
+  tabelBerulang(['No', 'Nama', 'Status/peran', 'Kontak/unit', 'Keterangan'], kolomE,
     (l.pihakTerlibat || []).map((p, i) => [String(i + 1), p.nama || '-', p.status || '-', p.kontak || '-', p.ket || '-']));
-  tabelBerulang(['No', 'Barang/aset', 'Identitas/nomor', 'Kondisi/jumlah', 'Nilai sementara'], [0.06, 0.26, 0.22, 0.22, 0.24],
-    (l.barangAset || []).map((a, i) => [String(i + 1), a.nama || '-', a.id || '-', a.kondisi || '-', a.nilai || '-']));
+  y += 2;
+  tabelBerulang(['No', 'Barang/aset', 'Identitas/nomor', 'Kondisi/jumlah', 'Nilai sementara'], kolomE,
+    (l.barangAset || []).map((a, i) => [String(i + 1), a.nama || '-', a.id || '-', a.kondisi || '-', kjFormatAngka(a.nilai)]));
 
+  doc.addPage(); y = 16; y += 5;
   judul('F. BUKTI/LAMPIRAN AWAL');
   tabelBerulang(['No', 'Jenis/deskripsi', 'Sumber/lokasi', 'Diserahkan kepada & waktu'], [0.06, 0.32, 0.3, 0.32],
     (l.buktiLampiran || []).map((b, i) => [String(i + 1), b.jenis || '-', b.sumber || '-', (b.kepada || '-') + ' / ' + (b.waktu ? kjFmtWaktu(b.waktu) : '-')]));
 
+  y += 5;
   judul('G. PERNYATAAN & SERAH-TERIMA PELAKSANA');
   await tabelFoto(l.dokumentasi || []);
   doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(90, 90, 90);
