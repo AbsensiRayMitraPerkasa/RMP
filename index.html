@@ -777,7 +777,7 @@
       <select id="kj-danru-pilih"><option value="">Memuat daftar laporan...</option></select>
       <div class="btn-row">
         <button type="button" class="btn btn-outline" id="btn-danru-muat">Muat Detail</button>
-        <button type="button" class="btn btn-outline" id="btn-danru-cetak">Cetak PDF (A-G)</button>
+        <button type="button" class="btn btn-outline" id="btn-danru-cetak">Cetak PDF</button>
       </div>
     </div>
     <div id="kj-danru-ringkasan" class="card hidden"></div>
@@ -834,7 +834,7 @@
       <select id="kj-koord-pilih"><option value="">Memuat daftar laporan...</option></select>
       <div class="btn-row">
         <button type="button" class="btn btn-outline" id="btn-koord-muat">Muat Detail</button>
-        <button type="button" class="btn btn-outline" id="btn-koord-cetak">Cetak PDF (A-I)</button>
+        <button type="button" class="btn btn-outline" id="btn-koord-cetak">Cetak PDF</button>
       </div>
     </div>
     <div id="kj-koord-ringkasan" class="card hidden"></div>
@@ -883,7 +883,6 @@
           <div><label>Penerima Lain (bila ada)</label><input type="text" id="kj-namaTtdLain"></div>
         </div>
         <button class="btn btn-soft-red" id="btn-kirim-kejadian-koordinator">Simpan Telaah Danton</button>
-        <button class="btn btn-outline" id="btn-koord-cetak-final">Cetak PDF Lengkap (A-K)</button>
       </div>
     </div>
   </div>
@@ -2421,9 +2420,8 @@ document.getElementById('btn-anggota-cetak').addEventListener('click', async () 
   if (!nomor) return showToast('Pilih laporan dulu.', false);
   const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
   if (!res.sukses) return showToast(res.pesan, false);
-  const tingkat = res.laporan.status === 'Selesai' ? 'A-K' : (res.laporan.status === 'Terverifikasi Danru' ? 'A-I' : 'A-G');
   showToast('Menyiapkan PDF...', true);
-  await kjGambarPdf(res.laporan, tingkat);
+  await kjGambarPdf(res.laporan, kjTingkatDariStatus(res.laporan.status));
 });
 document.getElementById('btn-danru-cetak').addEventListener('click', async () => {
   const nomor = document.getElementById('kj-danru-pilih').value;
@@ -2431,7 +2429,7 @@ document.getElementById('btn-danru-cetak').addEventListener('click', async () =>
   const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
   if (!res.sukses) return showToast(res.pesan, false);
   showToast('Menyiapkan PDF...', true);
-  await kjGambarPdf(res.laporan, 'A-G');
+  await kjGambarPdf(res.laporan, kjTingkatDariStatus(res.laporan.status));
 });
 document.getElementById('btn-kirim-kejadian-danru').addEventListener('click', async () => {
   const nomor = kejadianState.nomorAktif;
@@ -2497,12 +2495,7 @@ document.getElementById('btn-koord-cetak').addEventListener('click', async () =>
   const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
   if (!res.sukses) return showToast(res.pesan, false);
   showToast('Menyiapkan PDF...', true);
-  await kjGambarPdf(res.laporan, 'A-I');
-});
-document.getElementById('btn-koord-cetak-final').addEventListener('click', async () => {
-  if (!kejadianState.laporanAktif) return showToast('Muat detail laporan dulu.', false);
-  showToast('Menyiapkan PDF...', true);
-  await kjGambarPdf(kejadianState.laporanAktif, 'A-K');
+  await kjGambarPdf(res.laporan, kjTingkatDariStatus(res.laporan.status));
 });
 document.getElementById('btn-kirim-kejadian-koordinator').addEventListener('click', async () => {
   const nomor = kejadianState.nomorAktif;
@@ -2585,6 +2578,14 @@ function kjFormatAngka(val) {
   const s = String(val).trim();
   if (!/^\d+$/.test(s)) return s;
   return s.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+// Tingkat cetak selalu mengikuti status TERKINI laporan (bukan tingkat tetap
+// per tombol) - supaya siapapun yang cetak ulang selalu dapat isi terlengkap
+// yang sudah ada, bukan cuma sampai tingkat tombol yang dipencet.
+function kjTingkatDariStatus(status) {
+  if (status === 'Selesai') return 'A-K';
+  if (status === 'Terverifikasi Danru') return 'A-I';
+  return 'A-G';
 }
 function kjMuatGambar(url) {
   return new Promise((resolve) => {
@@ -2825,6 +2826,7 @@ async function kjGambarPdf(l, tingkat) {
   ]);
 
   if (tingkat === 'A-I' || tingkat === 'A-K') {
+    y += 5;
     judul('H. VERIFIKASI DAN TINDAKAN DANRU');
     baris2Kolom('Waktu menerima laporan', kjFmtWaktu(l.waktuTerimaDanru), 'Waktu tiba/ambil kendali', kjFmtWaktu(l.waktuTibaDanru));
     checklistBaris('Klasifikasi setelah verifikasi', ['Merah', 'Oranye', 'Kuning', 'Hijau'], l.klasifikasiDanru);
@@ -2834,6 +2836,7 @@ async function kjGambarPdf(l, tingkat) {
     tabelBerulang(['No', 'Waktu', 'Perintah/tindakan Danru & hasilnya'], [0.08, 0.14, 0.78],
       (l.tindakanDanru || []).map((t, i) => [String(i + 1), t.waktu || '-', t.isi || '-']));
 
+    y += 5;
     judul('I. ESKALASI DAN SERAH-TERIMA DANRU');
     baris2Kolom('Komandan Peleton (Danton)', 'Nama: ' + (l.namaKoordEskalasi || '-') + '\nWaktu: ' + (l.waktuKoordEskalasi || '-') + '\nArahan: ' + (l.arahanKoordEskalasi || '-'),
       'PIC/Manajemen', 'Nama: ' + (l.namaPicEskalasi || '-') + '\nWaktu: ' + (l.waktuPicEskalasi || '-') + '\nArahan: ' + (l.arahanPicEskalasi || '-'));
@@ -2846,6 +2849,7 @@ async function kjGambarPdf(l, tingkat) {
     ]);
   }
   if (tingkat === 'A-K') {
+    y += 5;
     judul('J. TELAAH DAN KEPUTUSAN KOMANDAN PELETON');
     checklistBaris('Level final sementara', ['Merah', 'Oranye', 'Kuning', 'Hijau'], l.levelFinal);
     checklistBaris('Investigasi internal', ['Tidak diperlukan', { val: 'Lainnya', label: 'Diperlukan' }], l.investigasi);
@@ -2856,6 +2860,7 @@ async function kjGambarPdf(l, tingkat) {
     checklistBaris('LHII', ['Tidak', 'Awal 1x24 jam', 'Final 3x24 jam', { val: 'Lainnya', label: 'Tenggat lain' }], l.lhii);
     baris2Kolom('Catatan Danton', l.catatanKoord, null, null);
 
+    y += 5;
     judul('K. DISTRIBUSI DAN STATUS');
     baris2Kolom('Distribusi', l.distribusiLaporan, null, null);
     checklistBaris('Status laporan', ['Terkendali/monitor', 'Investigasi berjalan', 'Diserahkan pihak berwenang', 'Siap ditutup'], l.statusAkhirLaporan);

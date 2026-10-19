@@ -1066,9 +1066,15 @@ async function muatRiwayatKejadianDetail() {
 async function kjAdminCetakPdf(i) {
   const l = kejadianDaftarAdminTerakhir[i];
   if (!l) return;
-  const tingkat = l.status === 'Selesai' ? 'A-K' : (l.status === 'Terverifikasi Danru' ? 'A-I' : 'A-G');
   showToast('Menyiapkan PDF...', true);
-  await kjGambarPdfAdmin(l, tingkat);
+  await kjGambarPdfAdmin(l, kjTingkatDariStatus(l.status));
+}
+// Tingkat cetak selalu mengikuti status TERKINI laporan (bukan tingkat tetap
+// per tombol) - sama seperti index.html.
+function kjTingkatDariStatus(status) {
+  if (status === 'Selesai') return 'A-K';
+  if (status === 'Terverifikasi Danru') return 'A-I';
+  return 'A-G';
 }
 function kjFmtWaktu(iso) {
   if (!iso) return '-';
@@ -1322,6 +1328,7 @@ async function kjGambarPdfAdmin(l, tingkat) {
   ]);
 
   if (tingkat === 'A-I' || tingkat === 'A-K') {
+    y += 5;
     judul('H. VERIFIKASI DAN TINDAKAN DANRU');
     baris2Kolom('Waktu menerima laporan', kjFmtWaktu(l.waktuTerimaDanru), 'Waktu tiba/ambil kendali', kjFmtWaktu(l.waktuTibaDanru));
     checklistBaris('Klasifikasi setelah verifikasi', ['Merah', 'Oranye', 'Kuning', 'Hijau'], l.klasifikasiDanru);
@@ -1331,6 +1338,7 @@ async function kjGambarPdfAdmin(l, tingkat) {
     tabelBerulang(['No', 'Waktu', 'Perintah/tindakan Danru & hasilnya'], [0.08, 0.14, 0.78],
       (l.tindakanDanru || []).map((t, i) => [String(i + 1), t.waktu || '-', t.isi || '-']));
 
+    y += 5;
     judul('I. ESKALASI DAN SERAH-TERIMA DANRU');
     baris2Kolom('Komandan Peleton (Danton)', 'Nama: ' + (l.namaKoordEskalasi || '-') + '\nWaktu: ' + (l.waktuKoordEskalasi || '-') + '\nArahan: ' + (l.arahanKoordEskalasi || '-'),
       'PIC/Manajemen', 'Nama: ' + (l.namaPicEskalasi || '-') + '\nWaktu: ' + (l.waktuPicEskalasi || '-') + '\nArahan: ' + (l.arahanPicEskalasi || '-'));
@@ -1343,6 +1351,7 @@ async function kjGambarPdfAdmin(l, tingkat) {
     ]);
   }
   if (tingkat === 'A-K') {
+    y += 5;
     judul('J. TELAAH DAN KEPUTUSAN KOMANDAN PELETON');
     checklistBaris('Level final sementara', ['Merah', 'Oranye', 'Kuning', 'Hijau'], l.levelFinal);
     checklistBaris('Investigasi internal', ['Tidak diperlukan', { val: 'Lainnya', label: 'Diperlukan' }], l.investigasi);
@@ -1353,6 +1362,7 @@ async function kjGambarPdfAdmin(l, tingkat) {
     checklistBaris('LHII', ['Tidak', 'Awal 1x24 jam', 'Final 3x24 jam', { val: 'Lainnya', label: 'Tenggat lain' }], l.lhii);
     baris2Kolom('Catatan Danton', l.catatanKoord, null, null);
 
+    y += 5;
     judul('K. DISTRIBUSI DAN STATUS');
     baris2Kolom('Distribusi', l.distribusiLaporan, null, null);
     checklistBaris('Status laporan', ['Terkendali/monitor', 'Investigasi berjalan', 'Diserahkan pihak berwenang', 'Siap ditutup'], l.statusAkhirLaporan);
