@@ -1111,7 +1111,7 @@ async function kjGambarPdfAdmin(l, tingkat) {
   const cekPage = (tambahan) => { if (y + tambahan > 283) { doc.addPage(); y = 16; } };
 
   function judul(teks) {
-    cekPage(9);
+    cekPage(22); // judul + sedikit ruang isinya, supaya judul tidak nyasar sendirian di akhir halaman
     doc.setFillColor(222, 234, 246); doc.setDrawColor(23, 56, 92); doc.setLineWidth(0.3);
     doc.rect(kiri, y, lebar, 7, 'FD');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(23, 56, 92);
@@ -1182,15 +1182,24 @@ async function kjGambarPdfAdmin(l, tingkat) {
     y += h;
   }
   function tabelBerulang(headers, colRatios, rows) {
+    const colWidths = colRatios.map(r => r * lebar);
     const colX = []; let acc = kiri; colRatios.forEach(r => { colX.push(acc); acc += r * lebar; });
-    cekPage(8);
+    // Cek muat header + baris pertama SEKALIGUS sebelum mulai gambar, supaya
+    // header tabel tidak pernah "nyasar" sendirian di baris terakhir halaman
+    // dengan baris datanya baru mulai di halaman berikutnya.
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8);
+    let tinggiBarisPertama = 6;
+    if (rows.length) {
+      const lines0 = rows[0].map((c, i) => doc.splitTextToSize(String(c == null || c === '' ? '-' : c), colWidths[i] - 3));
+      tinggiBarisPertama = Math.max(...lines0.map(ls => ls.length)) * 3.6 + 3;
+    }
+    cekPage(6.5 + tinggiBarisPertama + 1);
     doc.setFillColor(230, 238, 245); doc.setDrawColor(190, 190, 190); doc.setLineWidth(0.2);
     doc.rect(kiri, y, lebar, 6.5, 'FD');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(60, 60, 60);
     headers.forEach((h, i) => { doc.text(h, colX[i] + 1.5, y + 4.3); if (i > 0) doc.line(colX[i], y, colX[i], y + 6.5); });
     y += 6.5;
     if (!rows.length) {
-      cekPage(6);
       doc.setDrawColor(190, 190, 190); doc.rect(kiri, y, lebar, 6);
       doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(140, 140, 140);
       doc.text('(kosong)', kiri + 2, y + 4); y += 6;
@@ -1198,7 +1207,6 @@ async function kjGambarPdfAdmin(l, tingkat) {
     }
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); doc.setTextColor(31, 41, 55);
     rows.forEach((cells) => {
-      const colWidths = colRatios.map(r => r * lebar);
       const linesPerCell = cells.map((c, i) => doc.splitTextToSize(String(c == null || c === '' ? '-' : c), colWidths[i] - 3));
       const h = Math.max(...linesPerCell.map(ls => ls.length)) * 3.6 + 3;
       cekPage(h + 1);
@@ -1210,21 +1218,20 @@ async function kjGambarPdfAdmin(l, tingkat) {
   async function tabelFoto(items) {
     const colRatios = [0.08, 0.32, 0.60];
     const colX = []; let acc = kiri; colRatios.forEach(r => { colX.push(acc); acc += r * lebar; });
-    cekPage(8);
+    const imgH = 26;
+    cekPage(6.5 + (items.length ? imgH + 3 : 6) + 1);
     doc.setFillColor(230, 238, 245); doc.setDrawColor(190, 190, 190); doc.setLineWidth(0.2);
     doc.rect(kiri, y, lebar, 6.5, 'FD');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(60, 60, 60);
     ['No', 'Foto', 'Keterangan'].forEach((h, i) => { doc.text(h, colX[i] + 1.5, y + 4.3); if (i > 0) doc.line(colX[i], y, colX[i], y + 6.5); });
     y += 6.5;
     if (!items.length) {
-      cekPage(6);
       doc.setDrawColor(190, 190, 190); doc.rect(kiri, y, lebar, 6);
       doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(140, 140, 140);
       doc.text('(tidak ada foto)', kiri + 2, y + 4); y += 6;
       return;
     }
     for (let i = 0; i < items.length; i++) {
-      const imgH = 26;
       cekPage(imgH + 3 + 1);
       doc.setDrawColor(190, 190, 190); doc.rect(kiri, y, lebar, imgH + 3);
       doc.line(colX[1], y, colX[1], y + imgH + 3); doc.line(colX[2], y, colX[2], y + imgH + 3);
@@ -1310,7 +1317,7 @@ async function kjGambarPdfAdmin(l, tingkat) {
   tabelBerulang(['No', 'Barang/aset', 'Identitas/nomor', 'Kondisi/jumlah', 'Nilai sementara'], kolomE,
     (l.barangAset || []).map((a, i) => [String(i + 1), a.nama || '-', a.id || '-', a.kondisi || '-', kjFormatAngka(a.nilai)]));
 
-  doc.addPage(); y = 16; y += 5;
+  y += 5;
   judul('F. BUKTI/LAMPIRAN AWAL');
   tabelBerulang(['No', 'Jenis/deskripsi', 'Sumber/lokasi', 'Diserahkan kepada & waktu'], [0.06, 0.32, 0.3, 0.32],
     (l.buktiLampiran || []).map((b, i) => [String(i + 1), b.jenis || '-', b.sumber || '-', (b.kepada || '-') + ' / ' + (b.waktu ? kjFmtWaktu(b.waktu) : '-')]));
