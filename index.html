@@ -656,7 +656,11 @@
       <div class="cam-wrap" id="kejadian-camwrap"><video id="kejadian-video-foto" autoplay playsinline muted></video><button class="cam-flip" id="btn-flip-kejadian-foto" type="button">🔄</button></div>
       <canvas id="kejadian-canvas-foto" class="hidden"></canvas>
       <img id="kejadian-shot-foto" class="cam-shot hidden">
-      <div class="cam-actions" id="kejadian-foto-shoot-wrap"><button class="btn btn-navy" id="btn-shoot-kejadian-foto">📸 Ambil Foto</button></div>
+      <div class="cam-actions" id="kejadian-foto-shoot-wrap">
+        <button class="btn btn-navy" id="btn-shoot-kejadian-foto">📸 Ambil Foto</button>
+        <button class="btn btn-outline" id="btn-galeri-kejadian-foto" type="button">🖼️ Pilih dari Galeri</button>
+        <input type="file" id="kejadian-file-foto" accept="image/*" class="hidden">
+      </div>
       <div class="cam-actions hidden" id="kejadian-foto-retake-wrap">
         <label>Keterangan Foto</label>
         <input type="text" id="kejadian-foto-ket" placeholder="Contoh: Kondisi pos 1">
@@ -669,6 +673,11 @@
 
   <!-- ===== TINGKAT ANGGOTA: Bagian A-G ===== -->
   <div id="kejadian-view-anggota" class="hidden">
+    <div class="card">
+      <div class="section-lbl">Riwayat Laporan Saya</div>
+      <select id="kj-anggota-pilih"><option value="">Memuat daftar laporan...</option></select>
+      <button type="button" class="btn btn-outline" id="btn-anggota-cetak">Lihat / Cetak PDF</button>
+    </div>
     <div class="card"><div class="section-lbl">A. IDENTITAS DAN KLASIFIKASI AWAL</div></div>
     <div class="card">
       <label>Lokasi / Site</label><input type="text" id="kj-lokasi" required>
@@ -2277,6 +2286,26 @@ document.getElementById('btn-shoot-kejadian-foto').addEventListener('click', () 
   document.getElementById('kejadian-foto-retake-wrap').classList.remove('hidden');
   stopCameraByKey('kejadianFoto');
 });
+document.getElementById('btn-galeri-kejadian-foto').addEventListener('click', () => {
+  document.getElementById('kejadian-file-foto').click();
+});
+document.getElementById('kejadian-file-foto').addEventListener('change', (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const dataUrl = ev.target.result;
+    kejadianState.fotoAktif = base64Of(dataUrl);
+    document.getElementById('kejadian-shot-foto').src = dataUrl;
+    document.getElementById('kejadian-shot-foto').classList.remove('hidden');
+    document.getElementById('kejadian-camwrap').classList.add('hidden');
+    document.getElementById('kejadian-foto-shoot-wrap').classList.add('hidden');
+    document.getElementById('kejadian-foto-retake-wrap').classList.remove('hidden');
+    stopCameraByKey('kejadianFoto');
+  };
+  reader.readAsDataURL(file);
+});
 document.getElementById('btn-retake-kejadian-foto').addEventListener('click', async () => {
   kejadianState.fotoAktif = null;
   document.getElementById('kejadian-shot-foto').classList.add('hidden');
@@ -2336,6 +2365,7 @@ function resetLaporanKejadianScreen() {
     kjRenderDokumentasi();
     kjTambahKronologi();
     kjTambahDyn('pihak'); kjTambahDyn('aset'); kjTambahDyn('bukti');
+    kjMuatDaftar('kj-anggota-pilih');
     const btn = document.getElementById('btn-kirim-kejadian-anggota');
     btn.disabled = false; btn.textContent = 'Kirim Laporan Awal';
   }
@@ -2380,12 +2410,22 @@ document.getElementById('btn-danru-muat').addEventListener('click', async () => 
   document.getElementById('kj-waktuSerahDanru').value = '';
   const btn = document.getElementById('btn-kirim-kejadian-danru'); btn.disabled = false; btn.textContent = 'Simpan Verifikasi Danru';
 });
+document.getElementById('btn-anggota-cetak').addEventListener('click', async () => {
+  const nomor = document.getElementById('kj-anggota-pilih').value;
+  if (!nomor) return showToast('Pilih laporan dulu.', false);
+  const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
+  if (!res.sukses) return showToast(res.pesan, false);
+  const tingkat = res.laporan.status === 'Selesai' ? 'A-K' : (res.laporan.status === 'Terverifikasi Danru' ? 'A-I' : 'A-G');
+  showToast('Menyiapkan PDF...', true);
+  await kjGambarPdf(res.laporan, tingkat);
+});
 document.getElementById('btn-danru-cetak').addEventListener('click', async () => {
   const nomor = document.getElementById('kj-danru-pilih').value;
   if (!nomor) return showToast('Pilih nomor kejadian dulu.', false);
   const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
   if (!res.sukses) return showToast(res.pesan, false);
-  kjGambarPdf(res.laporan, 'A-G');
+  showToast('Menyiapkan PDF...', true);
+  await kjGambarPdf(res.laporan, 'A-G');
 });
 document.getElementById('btn-kirim-kejadian-danru').addEventListener('click', async () => {
   const nomor = kejadianState.nomorAktif;
@@ -2394,8 +2434,8 @@ document.getElementById('btn-kirim-kejadian-danru').addEventListener('click', as
   setBusy(btn, true, 'Menyimpan...', 'Simpan Verifikasi Danru');
   const res = await api('simpanLaporanKejadianDanru', {
     nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor,
-    waktuTerimaDanru: document.getElementById('kj-waktuTerimaDanru').value,
-    waktuTibaDanru: document.getElementById('kj-waktuTibaDanru').value,
+    waktuTerimaDanru: kjWib(document.getElementById('kj-waktuTerimaDanru').value),
+    waktuTibaDanru: kjWib(document.getElementById('kj-waktuTibaDanru').value),
     klasifikasiDanru: document.getElementById('kj-klasifikasiDanru').value,
     perubahanLevel: kjNilaiFinal('kj-perubahanLevel'),
     statusLokasi: document.getElementById('kj-statusLokasi').value,
@@ -2411,7 +2451,7 @@ document.getElementById('btn-kirim-kejadian-danru').addEventListener('click', as
     eksternalEskalasi: kjNilaiFinal('kj-eksternalEskalasi'),
     noLaporanEksternal: document.getElementById('kj-noLaporanEksternal').value,
     statusBukti: kjNilaiFinal('kj-statusBukti'),
-    waktuSerahDanru: document.getElementById('kj-waktuSerahDanru').value,
+    waktuSerahDanru: kjWib(document.getElementById('kj-waktuSerahDanru').value),
   });
   setBusy(btn, false, '', 'Simpan Verifikasi Danru');
   showToast(res.pesan, res.sukses);
@@ -2444,11 +2484,13 @@ document.getElementById('btn-koord-cetak').addEventListener('click', async () =>
   if (!nomor) return showToast('Pilih nomor kejadian dulu.', false);
   const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
   if (!res.sukses) return showToast(res.pesan, false);
-  kjGambarPdf(res.laporan, 'A-I');
+  showToast('Menyiapkan PDF...', true);
+  await kjGambarPdf(res.laporan, 'A-I');
 });
-document.getElementById('btn-koord-cetak-final').addEventListener('click', () => {
+document.getElementById('btn-koord-cetak-final').addEventListener('click', async () => {
   if (!kejadianState.laporanAktif) return showToast('Muat detail laporan dulu.', false);
-  kjGambarPdf(kejadianState.laporanAktif, 'A-K');
+  showToast('Menyiapkan PDF...', true);
+  await kjGambarPdf(kejadianState.laporanAktif, 'A-K');
 });
 document.getElementById('btn-kirim-kejadian-koordinator').addEventListener('click', async () => {
   const nomor = kejadianState.nomorAktif;
@@ -2484,7 +2526,7 @@ document.getElementById('btn-kirim-kejadian-anggota').addEventListener('click', 
     nama: sesi.nama, pin: sesi.pin,
     lokasi: document.getElementById('kj-lokasi').value, unit: document.getElementById('kj-unit').value,
     jenisLaporan: kjNilaiFinal('kj-jenisLaporan'), level: document.getElementById('kj-level').value,
-    waktuTerjadi: document.getElementById('kj-waktuTerjadi').value, waktuDiketahui: document.getElementById('kj-waktuDiketahui').value,
+    waktuTerjadi: kjWib(document.getElementById('kj-waktuTerjadi').value), waktuDiketahui: kjWib(document.getElementById('kj-waktuDiketahui').value),
     namaPelapor: document.getElementById('kj-namaPelapor').value, telpPelapor: document.getElementById('kj-telpPelapor').value,
     asalPelapor: document.getElementById('kj-asalPelapor').value, namaPetugas: document.getElementById('kj-namaPetugas').value,
     idPetugas: document.getElementById('kj-idPetugas').value, kondisiAwal: document.getElementById('kj-kondisiAwal').value,
@@ -2498,7 +2540,7 @@ document.getElementById('btn-kirim-kejadian-anggota').addEventListener('click', 
     pihakTerlibat: kjKumpulkanDyn('pihak'), barangAset: kjKumpulkanDyn('aset'), buktiLampiran: kjKumpulkanDyn('bukti'),
     dokumentasiFiles: kejadianState.dokumentasi,
     pernyataan: true,
-    namaPelaksanaSerah: document.getElementById('kj-namaPelaksanaSerah').value, waktuSerah: document.getElementById('kj-waktuSerah').value,
+    namaPelaksanaSerah: document.getElementById('kj-namaPelaksanaSerah').value, waktuSerah: kjWib(document.getElementById('kj-waktuSerah').value),
     namaDanruAwal: document.getElementById('kj-namaDanruAwal').value,
   });
   setBusy(btn, false, '', 'Kirim Laporan Awal');
@@ -2508,87 +2550,292 @@ document.getElementById('btn-kirim-kejadian-anggota').addEventListener('click', 
 
 // PDF ringkas (bukan template Google Docs seperti versi lama) - teks label:value
 // per bagian, dipaginasi otomatis, mengikuti gaya gambarSlipGajiPdf di atas.
-function kjGambarPdf(l, tingkat) {
+// Format tanggal/jam tersimpan (UTC) balik ke tampilan WIB yang enak dibaca.
+function kjFmtWaktu(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  const teks = d.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return teks + ' WIB';
+}
+// <input type="datetime-local"> selalu berisi waktu lokal perangkat (WIB untuk
+// app ini) TANPA offset zona waktu. Kalau dikirim mentah ke kolom timestamptz,
+// Postgres anggap itu UTC (geser 7 jam dari yang dimaksud user). Tempelkan
+// offset Asia/Jakarta (+07:00, tidak kenal DST) secara eksplisit di sini.
+function kjWib(val) {
+  if (!val) return null;
+  return val + (val.length === 16 ? ':00' : '') + '+07:00';
+}
+function kjMuatGambar(url) {
+  return new Promise((resolve) => {
+    if (!url) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+// PDF replika tata-letak form Google Docs asli (tabel bergaris, checkbox,
+// foto diembed langsung) - digambar pakai jsPDF, bukan screenshot ataupun
+// template Google Docs (lihat percakapan sebelumnya soal alasan migrasi).
+async function kjGambarPdf(l, tingkat) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const kiri = 14, kanan = 196, lebar = kanan - kiri;
-  const NAVY = [23, 56, 92], MUTED = [124, 135, 152], TEKS = [31, 41, 55], GARIS = [227, 231, 238];
   let y = 16;
-  const cekPage = (tambahan) => { if (y + tambahan > 285) { doc.addPage(); y = 16; } };
-  const judul = (t) => {
-    cekPage(10);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-    doc.text(t, kiri, y); y += 2;
-    doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]); doc.line(kiri, y, kanan, y); y += 5;
-  };
-  const baris = (label, val) => {
-    const lines = doc.splitTextToSize(String(val == null || val === '' ? '-' : val), lebar - 48);
-    cekPage(lines.length * 4.2 + 2);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-    doc.text(label, kiri, y);
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
-    doc.text(lines, kiri + 48, y);
-    y += Math.max(5, lines.length * 4.2);
-  };
-  const daftarTeks = (rows) => {
-    if (!rows.length) { baris('(kosong)', ''); return; }
-    rows.forEach((teks, i) => {
-      const lines = doc.splitTextToSize((i + 1) + '. ' + teks, lebar);
-      cekPage(lines.length * 4.2 + 1);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
-      doc.text(lines, kiri, y); y += lines.length * 4.2;
-    });
-    y += 2;
-  };
+  const cekPage = (tambahan) => { if (y + tambahan > 283) { doc.addPage(); y = 16; } };
 
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.text('LAPORAN KEJADIAN', kiri, y); y += 5;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-  doc.text('Nomor: ' + (l.nomorKejadian || '-') + '   |   Tingkat cetak: ' + tingkat, kiri, y); y += 8;
+  function judul(teks) {
+    cekPage(9);
+    doc.setFillColor(222, 234, 246); doc.setDrawColor(23, 56, 92); doc.setLineWidth(0.3);
+    doc.rect(kiri, y, lebar, 7, 'FD');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(23, 56, 92);
+    doc.text(teks, kiri + 2, y + 5);
+    y += 9;
+  }
+  function baris2Kolom(label1, teks1, label2, teks2) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+    if (label2 == null) {
+      const lines1 = doc.splitTextToSize(String(teks1 == null || teks1 === '' ? '-' : teks1), lebar - 4);
+      const h = lines1.length * 4.2 + 7;
+      cekPage(h + 1);
+      doc.setDrawColor(190, 190, 190); doc.setLineWidth(0.2); doc.rect(kiri, y, lebar, h);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(100, 100, 100);
+      doc.text(label1, kiri + 2, y + 4.5);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(31, 41, 55);
+      doc.text(lines1, kiri + 2, y + 9);
+      y += h;
+      return;
+    }
+    const w = lebar / 2;
+    const lines1 = doc.splitTextToSize(String(teks1 == null || teks1 === '' ? '-' : teks1), w - 6);
+    const lines2 = doc.splitTextToSize(String(teks2 == null || teks2 === '' ? '-' : teks2), w - 6);
+    const h = Math.max(lines1.length, lines2.length) * 4.2 + 7;
+    cekPage(h + 1);
+    doc.setDrawColor(190, 190, 190); doc.setLineWidth(0.2); doc.rect(kiri, y, lebar, h);
+    doc.line(kiri + w, y, kiri + w, y + h);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(100, 100, 100);
+    doc.text(label1, kiri + 2, y + 4.5); doc.text(label2, kiri + w + 2, y + 4.5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(31, 41, 55);
+    doc.text(lines1, kiri + 2, y + 9); doc.text(lines2, kiri + w + 2, y + 9);
+    y += h;
+  }
+  function gambarOpsiChecklist(x, yAwal, w, opsiNorm, nilai) {
+    const nilaiTrim = (nilai || '').trim();
+    const isLainnya = nilaiTrim.toLowerCase().startsWith('lainnya:');
+    const teksLainnya = isLainnya ? nilaiTrim.slice(nilaiTrim.indexOf(':') + 1).trim() : '';
+    let cx = x, cy = yAwal;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8);
+    opsiNorm.forEach((o) => {
+      const lebarOpsi = 4.2 + doc.getTextWidth(o.label) + 4;
+      if (cx + lebarOpsi > x + w) { cx = x; cy += 4.6; }
+      const dicentang = isLainnya ? (o.val === 'Lainnya') : (o.val === nilaiTrim);
+      doc.setDrawColor(90, 90, 90); doc.setLineWidth(0.25); doc.rect(cx, cy - 2.8, 3, 3);
+      if (dicentang) { doc.setFillColor(23, 56, 92); doc.rect(cx + 0.5, cy - 2.3, 2, 2, 'F'); }
+      doc.setTextColor(31, 41, 55);
+      doc.text(o.label, cx + 4, cy);
+      cx += lebarOpsi;
+    });
+    if (isLainnya && teksLainnya) {
+      cy += 4.6;
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7.3); doc.setTextColor(90, 90, 90);
+      doc.text('Keterangan: ' + teksLainnya, x, cy);
+    }
+    return cy;
+  }
+  function checklistBaris(label, opsi, nilai) {
+    const opsiNorm = opsi.map(o => typeof o === 'string' ? { val: o, label: o } : o);
+    const nilaiTrim = (nilai || '').trim();
+    const isLainnya = nilaiTrim.toLowerCase().startsWith('lainnya:');
+    const jmlBarisOpsi = Math.ceil(opsiNorm.length / 5);
+    const h = 6.5 + jmlBarisOpsi * 4.6 + (isLainnya ? 4.6 : 0) + 2;
+    cekPage(h + 1);
+    doc.setDrawColor(190, 190, 190); doc.setLineWidth(0.2); doc.rect(kiri, y, lebar, h);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(100, 100, 100);
+    doc.text(label, kiri + 2, y + 4.5);
+    gambarOpsiChecklist(kiri + 2, y + 9.3, lebar - 4, opsiNorm, nilai);
+    y += h;
+  }
+  function tabelBerulang(headers, colRatios, rows) {
+    const colX = []; let acc = kiri; colRatios.forEach(r => { colX.push(acc); acc += r * lebar; });
+    cekPage(8);
+    doc.setFillColor(230, 238, 245); doc.setDrawColor(190, 190, 190); doc.setLineWidth(0.2);
+    doc.rect(kiri, y, lebar, 6.5, 'FD');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(60, 60, 60);
+    headers.forEach((h, i) => { doc.text(h, colX[i] + 1.5, y + 4.3); if (i > 0) doc.line(colX[i], y, colX[i], y + 6.5); });
+    y += 6.5;
+    if (!rows.length) {
+      cekPage(6);
+      doc.setDrawColor(190, 190, 190); doc.rect(kiri, y, lebar, 6);
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(140, 140, 140);
+      doc.text('(kosong)', kiri + 2, y + 4); y += 6;
+      return;
+    }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); doc.setTextColor(31, 41, 55);
+    rows.forEach((cells) => {
+      const colWidths = colRatios.map(r => r * lebar);
+      const linesPerCell = cells.map((c, i) => doc.splitTextToSize(String(c == null || c === '' ? '-' : c), colWidths[i] - 3));
+      const h = Math.max(...linesPerCell.map(ls => ls.length)) * 3.6 + 3;
+      cekPage(h + 1);
+      doc.setDrawColor(190, 190, 190); doc.rect(kiri, y, lebar, h);
+      linesPerCell.forEach((lines, i) => { if (i > 0) doc.line(colX[i], y, colX[i], y + h); doc.text(lines, colX[i] + 1.5, y + 3.3); });
+      y += h;
+    });
+  }
+  async function tabelFoto(items) {
+    const colRatios = [0.08, 0.32, 0.60];
+    const colX = []; let acc = kiri; colRatios.forEach(r => { colX.push(acc); acc += r * lebar; });
+    cekPage(8);
+    doc.setFillColor(230, 238, 245); doc.setDrawColor(190, 190, 190); doc.setLineWidth(0.2);
+    doc.rect(kiri, y, lebar, 6.5, 'FD');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(60, 60, 60);
+    ['No', 'Foto', 'Keterangan'].forEach((h, i) => { doc.text(h, colX[i] + 1.5, y + 4.3); if (i > 0) doc.line(colX[i], y, colX[i], y + 6.5); });
+    y += 6.5;
+    if (!items.length) {
+      cekPage(6);
+      doc.setDrawColor(190, 190, 190); doc.rect(kiri, y, lebar, 6);
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(140, 140, 140);
+      doc.text('(tidak ada foto)', kiri + 2, y + 4); y += 6;
+      return;
+    }
+    for (let i = 0; i < items.length; i++) {
+      const imgH = 26;
+      cekPage(imgH + 3 + 1);
+      doc.setDrawColor(190, 190, 190); doc.rect(kiri, y, lebar, imgH + 3);
+      doc.line(colX[1], y, colX[1], y + imgH + 3); doc.line(colX[2], y, colX[2], y + imgH + 3);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(31, 41, 55);
+      doc.text(String(i + 1), colX[0] + 1.5, y + 4);
+      let imgEl = null;
+      try { imgEl = await kjMuatGambar(items[i].url); } catch (e) { imgEl = null; }
+      if (imgEl && imgEl.naturalWidth) {
+        try {
+          const rasio = imgEl.naturalWidth / imgEl.naturalHeight || 1;
+          const boxW = colRatios[1] * lebar - 3, boxH = imgH;
+          let dw = boxW, dh = boxW / rasio;
+          if (dh > boxH) { dh = boxH; dw = boxH * rasio; }
+          doc.addImage(imgEl, 'JPEG', colX[1] + 1.5, y + 1.5, dw, dh);
+        } catch (e) {
+          doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(150, 150, 150);
+          doc.text('Gagal memuat gambar', colX[1] + 1.5, y + imgH / 2);
+        }
+      } else {
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(150, 150, 150);
+        doc.text('Gagal memuat gambar', colX[1] + 1.5, y + imgH / 2);
+      }
+      const ketLines = doc.splitTextToSize(items[i].keterangan || '-', colRatios[2] * lebar - 3);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(31, 41, 55);
+      doc.text(ketLines, colX[2] + 1.5, y + 4);
+      y += imgH + 3;
+    }
+  }
+  function signatureRow(cols) {
+    const w = lebar / cols.length, h = 18;
+    cekPage(h + 1);
+    doc.setDrawColor(190, 190, 190); doc.setLineWidth(0.2);
+    cols.forEach((c, i) => {
+      const x = kiri + i * w;
+      doc.rect(x, y, w, h);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.3); doc.setTextColor(60, 60, 60);
+      doc.text(doc.splitTextToSize(c.judul, w - 4), x + 2, y + 4);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(31, 41, 55);
+      doc.text('Nama: ' + (c.nama || '-'), x + 2, y + h - 7);
+      doc.text('Tanggal/Jam: ' + (c.waktu || '-'), x + 2, y + h - 3);
+    });
+    y += h;
+  }
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(23, 56, 92);
+  doc.text('LAPORAN KEJADIAN', kiri, y); y += 3;
+  doc.setDrawColor(23, 56, 92); doc.setLineWidth(0.6); doc.line(kiri, y, kanan, y); y += 6;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
+  doc.text('PT. Ray Mitra Perkasa  —  Tingkat cetak: ' + tingkat, kiri, y); y += 7;
 
   judul('A. IDENTITAS DAN KLASIFIKASI AWAL');
-  baris('Lokasi/Site', l.lokasi); baris('Unit/Area', l.unit);
-  baris('Jenis Laporan', l.jenisLaporan); baris('Level', l.levelAwal);
-  baris('Waktu Terjadi', l.waktuTerjadi); baris('Waktu Diketahui', l.waktuDiketahui);
-  baris('Nama Pelapor', l.namaPelapor); baris('Telp Pelapor', l.telpPelapor); baris('Asal Pelapor', l.asalPelapor);
-  baris('Petugas Penerima', l.namaPetugas); baris('No. ID Petugas', l.idPetugas);
-  judul('B. KONDISI SAAT PERTAMA DIKETAHUI'); baris('Kondisi Awal', l.kondisiAwal);
-  judul('C. KRONOLOGI'); daftarTeks((l.kronologi || []).map(k => '[' + (k.waktu || '-') + '] ' + (k.uraian || '-')));
+  baris2Kolom('Nomor kejadian', l.nomorKejadian, 'Tanggal laporan', kjFmtWaktu(l.dibuatPada));
+  baris2Kolom('Lokasi/site', l.lokasi, 'Unit/area', l.unit);
+  checklistBaris('Jenis laporan', ['Kehilangan', 'Pencurian', 'Barang temuan', 'Perkelahian', 'Kebakaran', 'Medis', { val: 'Lainnya', label: 'Lainnya' }], l.jenisLaporan);
+  checklistBaris('Level', ['Merah', 'Oranye', 'Kuning', 'Hijau'], l.levelAwal);
+  baris2Kolom('Waktu terjadi', kjFmtWaktu(l.waktuTerjadi), 'Waktu diketahui', kjFmtWaktu(l.waktuDiketahui));
+  baris2Kolom('Pelapor', 'Nama: ' + (l.namaPelapor || '-') + '\nNo. Tlf: ' + (l.telpPelapor || '-') + '\nAsal: ' + (l.asalPelapor || '-'),
+    'Petugas penerima laporan', 'Nama: ' + (l.namaPetugas || '-') + '\nNo. ID: ' + (l.idPetugas || '-'));
+
+  judul('B. KONDISI SAAT PERTAMA DIKETAHUI');
+  baris2Kolom('Kondisi awal', l.kondisiAwal, null, null);
+
+  judul('C. KRONOLOGI LAPORAN KEJADIAN — URUT WAKTU');
+  tabelBerulang(['No', 'Waktu', 'Uraian fakta/tindakan'], [0.08, 0.14, 0.78],
+    (l.kronologi || []).map((k, i) => [String(i + 1), k.waktu || '-', k.uraian || '-']));
+
   judul('D. TINDAKAN AWAL');
-  baris('Tindakan Keselamatan', l.tindakanKeselamatan); baris('Tindakan Pengamanan', l.tindakanPengamanan);
+  checklistBaris('Tindakan keselamatan', ['Tidak diperlukan', 'Alarm', 'Evakuasi', 'Pertolongan pertama', 'APAR', { val: 'Lainnya', label: 'Lainnya' }], l.tindakanKeselamatan);
+  checklistBaris('Tindakan pengamanan', ['Perimeter', 'Pembatasan akses', 'Pisahkan pihak', 'Jaga barang', { val: 'Lainnya', label: 'Lainnya' }], l.tindakanPengamanan);
   const pd = l.pihakDihubungi || {};
-  baris('Pihak Dihubungi', (pd.nama || '-') + ' | Waktu: ' + (pd.waktu || '-') + ' | Respons: ' + (pd.respons || '-'));
-  baris('Korban/Luka', l.korban); baris('Bahaya Saat Serah-Terima', l.bahayaSerahTerima);
-  judul('E. PIHAK TERLIBAT & BARANG/ASET');
-  daftarTeks((l.pihakTerlibat || []).map(p => (p.nama || '-') + ' | ' + (p.status || '-') + ' | ' + (p.kontak || '-') + ' | ' + (p.ket || '-')));
-  daftarTeks((l.barangAset || []).map(a => (a.nama || '-') + ' | ' + (a.id || '-') + ' | ' + (a.kondisi || '-') + ' | ' + (a.nilai || '-')));
+  baris2Kolom('Pihak dihubungi', 'Nama/instansi: ' + (pd.nama || '-') + '\nWaktu: ' + (pd.waktu || '-') + '\nRespons: ' + (pd.respons || '-'), 'Korban/luka', l.korban);
+  baris2Kolom('Bahaya saat serah-terima', l.bahayaSerahTerima, null, null);
+
+  judul('E. KONDISI AKHIR — PIHAK TERLIBAT & ASET');
+  tabelBerulang(['No', 'Nama', 'Status/peran', 'Kontak/unit', 'Keterangan'], [0.06, 0.22, 0.2, 0.2, 0.32],
+    (l.pihakTerlibat || []).map((p, i) => [String(i + 1), p.nama || '-', p.status || '-', p.kontak || '-', p.ket || '-']));
+  tabelBerulang(['No', 'Barang/aset', 'Identitas/nomor', 'Kondisi/jumlah', 'Nilai sementara'], [0.06, 0.26, 0.22, 0.22, 0.24],
+    (l.barangAset || []).map((a, i) => [String(i + 1), a.nama || '-', a.id || '-', a.kondisi || '-', a.nilai || '-']));
+
   judul('F. BUKTI/LAMPIRAN AWAL');
-  daftarTeks((l.buktiLampiran || []).map(b => (b.jenis || '-') + ' | ' + (b.sumber || '-') + ' | ' + (b.kepada || '-') + ' | ' + (b.waktu || '-')));
+  tabelBerulang(['No', 'Jenis/deskripsi', 'Sumber/lokasi', 'Diserahkan kepada & waktu'], [0.06, 0.32, 0.3, 0.32],
+    (l.buktiLampiran || []).map((b, i) => [String(i + 1), b.jenis || '-', b.sumber || '-', (b.kepada || '-') + ' / ' + (b.waktu ? kjFmtWaktu(b.waktu) : '-')]));
+
   judul('G. PERNYATAAN & SERAH-TERIMA PELAKSANA');
-  baris('Dokumentasi Foto', (l.dokumentasi || []).length + ' foto terlampir (lihat admin untuk tautan foto)');
-  baris('Pembuat Laporan', l.namaPelaksanaSerah); baris('Waktu Serah', l.waktuSerah); baris('Danru Penerima', l.namaDanruAwal);
+  await tabelFoto(l.dokumentasi || []);
+  doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(90, 90, 90);
+  const pernyataanLines = doc.splitTextToSize('Saya menyatakan laporan di atas saya tulis berdasarkan apa yang saya ketahui dan lakukan, tanpa menambah dugaan sebagai fakta. Kondisi/lokasi telah saya serahkan kepada Danru sebagaimana dicatat.', lebar);
+  cekPage(pernyataanLines.length * 3.6 + 4);
+  doc.text(pernyataanLines, kiri, y + 3); y += pernyataanLines.length * 3.6 + 6;
+  signatureRow([
+    { judul: 'Pelaksana/Pembuat laporan', nama: l.namaPelaksanaSerah, waktu: kjFmtWaktu(l.waktuSerah) },
+    { judul: 'Danru penerima kendali', nama: l.namaDanruAwal, waktu: '-' },
+  ]);
 
   if (tingkat === 'A-I' || tingkat === 'A-K') {
     judul('H. VERIFIKASI DAN TINDAKAN DANRU');
-    baris('Waktu Terima Danru', l.waktuTerimaDanru); baris('Waktu Tiba Danru', l.waktuTibaDanru);
-    baris('Klasifikasi Danru', l.klasifikasiDanru); baris('Perubahan Level', l.perubahanLevel);
-    baris('Status Lokasi', l.statusLokasi); baris('Personel Tambahan', l.personelTambahan);
-    baris('Hasil Verifikasi', l.hasilVerifikasi);
-    daftarTeks((l.tindakanDanru || []).map(t => '[' + (t.waktu || '-') + '] ' + (t.isi || '-')));
+    baris2Kolom('Waktu menerima laporan', kjFmtWaktu(l.waktuTerimaDanru), 'Waktu tiba/ambil kendali', kjFmtWaktu(l.waktuTibaDanru));
+    checklistBaris('Klasifikasi setelah verifikasi', ['Merah', 'Oranye', 'Kuning', 'Hijau'], l.klasifikasiDanru);
+    baris2Kolom('Perubahan dari level awal', l.perubahanLevel, 'Status lokasi', l.statusLokasi);
+    baris2Kolom('Personel tambahan', l.personelTambahan, null, null);
+    baris2Kolom('Hasil verifikasi Danru', l.hasilVerifikasi, null, null);
+    tabelBerulang(['No', 'Waktu', 'Perintah/tindakan Danru & hasilnya'], [0.08, 0.14, 0.78],
+      (l.tindakanDanru || []).map((t, i) => [String(i + 1), t.waktu || '-', t.isi || '-']));
+
     judul('I. ESKALASI DAN SERAH-TERIMA DANRU');
-    baris('Koordinator Eskalasi', (l.namaKoordEskalasi || '-') + ' / ' + (l.waktuKoordEskalasi || '-') + ' / ' + (l.arahanKoordEskalasi || '-'));
-    baris('PIC Eskalasi', (l.namaPicEskalasi || '-') + ' / ' + (l.waktuPicEskalasi || '-') + ' / ' + (l.arahanPicEskalasi || '-'));
-    baris('Eksternal Eskalasi', l.eksternalEskalasi); baris('No. Laporan Eksternal', l.noLaporanEksternal);
-    baris('Status Bukti', l.statusBukti); baris('Waktu Serah ke Koordinator', l.waktuSerahDanru);
+    baris2Kolom('Koordinator', 'Nama: ' + (l.namaKoordEskalasi || '-') + '\nWaktu: ' + (l.waktuKoordEskalasi || '-') + '\nArahan: ' + (l.arahanKoordEskalasi || '-'),
+      'PIC/Manajemen', 'Nama: ' + (l.namaPicEskalasi || '-') + '\nWaktu: ' + (l.waktuPicEskalasi || '-') + '\nArahan: ' + (l.arahanPicEskalasi || '-'));
+    checklistBaris('Eksternal dihubungi', ['Tidak ada', 'Polisi', 'Damkar', 'Medis', { val: 'Lainnya', label: 'Lainnya' }], l.eksternalEskalasi);
+    baris2Kolom('No. laporan/petugas eksternal', l.noLaporanEksternal, null, null);
+    checklistBaris('Status bukti/CCTV', ['Sudah diamankan', 'Proses', 'Tidak ada', { val: 'Lainnya', label: 'Terkendala' }], l.statusBukti);
+    signatureRow([
+      { judul: 'Danru/Pemeriksa awal', nama: l.namaDanruAkhir, waktu: kjFmtWaktu(l.waktuSerahDanru) },
+      { judul: 'Koordinator penerima kendali', nama: l.namaKoordEskalasi, waktu: '-' },
+    ]);
   }
   if (tingkat === 'A-K') {
     judul('J. TELAAH DAN KEPUTUSAN KOORDINATOR');
-    baris('Level Final', l.levelFinal); baris('Investigasi', l.investigasi); baris('Rekonsiliasi', l.rekonsiliasi);
-    baris('Wawancara', l.wawancara); baris('Pelaporan Eksternal', l.pelaporanEks); baris('Pengamanan Lanjutan', l.pengamananLanjut);
-    baris('LHII', l.lhii); baris('Catatan Koordinator', l.catatanKoord);
+    checklistBaris('Level final sementara', ['Merah', 'Oranye', 'Kuning', 'Hijau'], l.levelFinal);
+    checklistBaris('Investigasi internal', ['Tidak diperlukan', { val: 'Lainnya', label: 'Diperlukan' }], l.investigasi);
+    checklistBaris('SO/rekonsiliasi', ['Tidak', { val: 'Lainnya', label: 'Ya' }], l.rekonsiliasi);
+    checklistBaris('Wawancara/klarifikasi', ['Tidak', { val: 'Lainnya', label: 'Ya' }], l.wawancara);
+    checklistBaris('Pelaporan eksternal', ['Tidak', 'Polisi', 'Damkar', 'K3', { val: 'Lainnya', label: 'Lainnya' }], l.pelaporanEks);
+    checklistBaris('Pengamanan lanjutan', ['Tidak ada', 'Tambah personel', 'Tutup area', 'Simpan bukti', 'Pantau CCTV', { val: 'Lainnya', label: 'Lainnya' }], l.pengamananLanjut);
+    checklistBaris('LHII', ['Tidak', 'Awal 1x24 jam', 'Final 3x24 jam', { val: 'Lainnya', label: 'Tenggat lain' }], l.lhii);
+    baris2Kolom('Catatan koordinator', l.catatanKoord, null, null);
+
     judul('K. DISTRIBUSI DAN STATUS');
-    baris('Distribusi', l.distribusiLaporan); baris('Status Akhir', l.statusAkhirLaporan);
-    baris('TTD Koordinator', l.namaTtdKoord); baris('TTD PIC', l.namaTtdPic); baris('TTD Lain', l.namaTtdLain);
+    baris2Kolom('Distribusi', l.distribusiLaporan, null, null);
+    checklistBaris('Status laporan', ['Terkendali/monitor', 'Investigasi berjalan', 'Diserahkan pihak berwenang', 'Siap ditutup'], l.statusAkhirLaporan);
+    signatureRow([
+      { judul: 'Koordinator Satpam', nama: l.namaTtdKoord, waktu: kjFmtWaktu(l.waktuTtdKoord) },
+      { judul: 'PIC/Pejabat pengguna jasa', nama: l.namaTtdPic, waktu: '-' },
+      { judul: 'Penerima lain (bila ada)', nama: l.namaTtdLain, waktu: '-' },
+    ]);
   }
   doc.save('Laporan_' + String(l.nomorKejadian || 'kejadian').replace(/[^a-zA-Z0-9]+/g, '_') + '_' + tingkat + '.pdf');
 }
