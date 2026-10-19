@@ -2769,13 +2769,16 @@ async function kjGambarPdf(l, tingkat) {
   baris2Kolom('Pelapor', 'Nama: ' + (l.namaPelapor || '-') + '\nNo. Tlf: ' + (l.telpPelapor || '-') + '\nAsal: ' + (l.asalPelapor || '-'),
     'Petugas penerima laporan', 'Nama: ' + (l.namaPetugas || '-') + '\nNo. ID: ' + (l.idPetugas || '-'));
 
+  y += 5;
   judul('B. KONDISI SAAT PERTAMA DIKETAHUI');
   baris2Kolom('Kondisi awal', l.kondisiAwal, null, null);
 
+  y += 5;
   judul('C. KRONOLOGI LAPORAN KEJADIAN — URUT WAKTU');
   tabelBerulang(['No', 'Waktu', 'Uraian fakta/tindakan'], [0.08, 0.14, 0.78],
     (l.kronologi || []).map((k, i) => [String(i + 1), k.waktu || '-', k.uraian || '-']));
 
+  y += 5;
   judul('D. TINDAKAN AWAL');
   checklistBaris('Tindakan keselamatan', ['Tidak diperlukan', 'Alarm', 'Evakuasi', 'Pertolongan pertama', 'APAR', { val: 'Lainnya', label: 'Lainnya' }], l.tindakanKeselamatan);
   checklistBaris('Tindakan pengamanan', ['Perimeter', 'Pembatasan akses', 'Pisahkan pihak', 'Jaga barang', { val: 'Lainnya', label: 'Lainnya' }], l.tindakanPengamanan);
@@ -2783,6 +2786,7 @@ async function kjGambarPdf(l, tingkat) {
   baris2Kolom('Pihak dihubungi', 'Nama/instansi: ' + (pd.nama || '-') + '\nWaktu: ' + (pd.waktu || '-') + '\nRespons: ' + (pd.respons || '-'), 'Korban/luka', l.korban);
   baris2Kolom('Bahaya saat serah-terima', l.bahayaSerahTerima, null, null);
 
+  y += 5;
   judul('E. KONDISI AKHIR — PIHAK TERLIBAT & ASET');
   const kolomE = [0.06, 0.24, 0.22, 0.22, 0.26];
   tabelBerulang(['No', 'Nama', 'Status/peran', 'Kontak/unit', 'Keterangan'], kolomE,
