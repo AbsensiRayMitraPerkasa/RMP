@@ -320,6 +320,7 @@
   <nav class="tabs" id="tabs">
     <button data-tab="absensi" class="active">Dashboard Absensi</button>
     <button data-tab="patroli">Dashboard Patroli</button>
+    <button data-tab="kejadian" id="tab-btn-kejadian" class="hidden">Laporan Kejadian</button>
     <button data-tab="cleaning">Dashboard Cleaning</button>
     <button data-tab="penilaian">Penilaian &amp; Evaluasi</button>
     <button data-tab="kelola" id="tab-btn-kelola" class="hidden">Kelola Data</button>
@@ -381,6 +382,21 @@
           <table>
             <thead><tr><th>Tanggal</th><th>Nama</th><th>Titik Pos</th><th>Jam</th><th>Akurasi GPS</th><th>Catatan</th><th>Foto</th></tr></thead>
             <tbody id="patroli-detail-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <section class="tabpanel" id="tab-kejadian">
+      <div class="stat-grid" id="kejadian-stats"></div>
+      <div class="panel">
+        <div class="section-title">Riwayat Laporan Kejadian</div>
+        <p class="muted" style="font-size:12.5px; margin-top:-6px;">Laporan berjenjang Anggota → Danru → Koordinator pada bulan &amp; tahun yang difilter di atas. Klik "Cetak PDF" untuk lihat/unduh detail lengkap satu laporan.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Nomor</th><th>Tanggal</th><th>Lokasi</th><th>Jenis Laporan</th><th>Level</th><th>Status</th><th>Foto</th><th>Aksi</th></tr></thead>
+            <tbody id="kejadian-detail-table"></tbody>
           </table>
         </div>
       </div>
@@ -652,6 +668,12 @@ const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
 const KLIEN_SLIP_GAJI_DIIZINKAN = ['soerojo-hospital'];
 if (KLIEN_SLIP_GAJI_DIIZINKAN.includes(KODE_KLIEN)) {
   document.getElementById('tab-sub-slipgaji').classList.remove('hidden');
+}
+// Menu "Laporan Kejadian" (rekap/pengawasan) baru dipakai klien SOEROJO
+// HOSPITAL juga - sama dengan index.html.
+const KLIEN_LAPORAN_KEJADIAN_DIIZINKAN = ['soerojo-hospital'];
+if (KLIEN_LAPORAN_KEJADIAN_DIIZINKAN.includes(KODE_KLIEN)) {
+  document.getElementById('tab-btn-kejadian').classList.remove('hidden');
 }
 // Link "Admin Klien" dari Super Admin membawa ?akses=klien. Dengan ini
 // dikirim ke server, password Admin Ray (ADMIN_PASSWORD) tidak akan pernah
@@ -1005,6 +1027,135 @@ function muatSemuaDashboard() {
   muatDashboardOperasional('ambilDashboardPatroli', 'patroli-stats', 'patroli-table');
   muatRiwayatPatroliDetail();
   muatDashboardOperasional('ambilDashboardCleaning', 'cleaning-stats', 'cleaning-table');
+  if (KLIEN_LAPORAN_KEJADIAN_DIIZINKAN.includes(KODE_KLIEN)) { muatDashboardKejadian(); muatRiwayatKejadianDetail(); }
+}
+
+// ===== LAPORAN KEJADIAN: rekap/pengawasan admin (khusus SOEROJO HOSPITAL) =====
+let kejadianDaftarAdminTerakhir = [];
+async function muatDashboardKejadian() {
+  const res = await api('ambilDashboardKejadian', { password: adminPassword, bulan: filterBulan, tahun: filterTahun });
+  if (!res.sukses) return showToast(res.pesan, false);
+  const kpi = res.kpi;
+  document.getElementById('kejadian-stats').innerHTML =
+    statTile(kpi.total, 'Total Laporan') +
+    statTile(kpi.perStatus['Menunggu Verifikasi Danru'] || 0, 'Menunggu Danru') +
+    statTile(kpi.perStatus['Terverifikasi Danru'] || 0, 'Menunggu Koordinator') +
+    statTile(kpi.perStatus['Selesai'] || 0, 'Selesai') +
+    statTile(kpi.perLevel['Merah'] || 0, 'Level Merah');
+}
+async function muatRiwayatKejadianDetail() {
+  const tbody = document.getElementById('kejadian-detail-table');
+  const res = await api('daftarKejadianDetailAdmin', { password: adminPassword, bulan: filterBulan, tahun: filterTahun });
+  if (!res.sukses) { tbody.innerHTML = '<tr><td colspan="8" class="muted">' + res.pesan + '</td></tr>'; return; }
+  kejadianDaftarAdminTerakhir = res.daftar || [];
+  tbody.innerHTML = kejadianDaftarAdminTerakhir.length ? kejadianDaftarAdminTerakhir.map((r, i) => {
+    const level = r.levelFinal || r.klasifikasiDanru || r.levelAwal || '-';
+    const jmlFoto = (r.dokumentasi || []).length;
+    return '<tr>' +
+      '<td class="mono">' + (r.nomorKejadian || '-') + '</td>' +
+      '<td class="mono">' + String(r.dibuatPada || '').slice(0, 10) + '</td>' +
+      '<td>' + (r.lokasi || '-') + '</td>' +
+      '<td>' + (r.jenisLaporan || '-') + '</td>' +
+      '<td>' + level + '</td>' +
+      '<td>' + (r.status || '-') + '</td>' +
+      '<td>' + (jmlFoto ? ('<a href="' + r.dokumentasi[0].url + '" target="_blank" rel="noopener">' + jmlFoto + ' foto</a>') : '-') + '</td>' +
+      '<td><button type="button" class="btn btn-outline btn-sm" onclick="kjAdminCetakPdf(' + i + ')">Cetak PDF</button></td>' +
+    '</tr>';
+  }).join('') : '<tr><td colspan="8" class="muted">Belum ada laporan kejadian pada periode ini.</td></tr>';
+}
+function kjAdminCetakPdf(i) {
+  const l = kejadianDaftarAdminTerakhir[i];
+  if (!l) return;
+  const tingkat = l.status === 'Selesai' ? 'A-K' : (l.status === 'Terverifikasi Danru' ? 'A-I' : 'A-G');
+  kjGambarPdfAdmin(l, tingkat);
+}
+// PDF ringkas Laporan Kejadian - salinan dari kjGambarPdf di index.html
+// (file ini berdiri sendiri, tidak share module JS dengan index.html).
+function kjGambarPdfAdmin(l, tingkat) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const kiri = 14, kanan = 196, lebar = kanan - kiri;
+  const NAVY = [23, 56, 92], MUTED = [124, 135, 152], TEKS = [31, 41, 55], GARIS = [227, 231, 238];
+  let y = 16;
+  const cekPage = (tambahan) => { if (y + tambahan > 285) { doc.addPage(); y = 16; } };
+  const judul = (t) => {
+    cekPage(10);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.text(t, kiri, y); y += 2;
+    doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]); doc.line(kiri, y, kanan, y); y += 5;
+  };
+  const baris = (label, val) => {
+    const lines = doc.splitTextToSize(String(val == null || val === '' ? '-' : val), lebar - 48);
+    cekPage(lines.length * 4.2 + 2);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    doc.text(label, kiri, y);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+    doc.text(lines, kiri + 48, y);
+    y += Math.max(5, lines.length * 4.2);
+  };
+  const daftarTeks = (rows) => {
+    if (!rows.length) { baris('(kosong)', ''); return; }
+    rows.forEach((teks, i) => {
+      const lines = doc.splitTextToSize((i + 1) + '. ' + teks, lebar);
+      cekPage(lines.length * 4.2 + 1);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+      doc.text(lines, kiri, y); y += lines.length * 4.2;
+    });
+    y += 2;
+  };
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.text('LAPORAN KEJADIAN', kiri, y); y += 5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text('Nomor: ' + (l.nomorKejadian || '-') + '   |   Tingkat cetak: ' + tingkat, kiri, y); y += 8;
+
+  judul('A. IDENTITAS DAN KLASIFIKASI AWAL');
+  baris('Lokasi/Site', l.lokasi); baris('Unit/Area', l.unit);
+  baris('Jenis Laporan', l.jenisLaporan); baris('Level', l.levelAwal);
+  baris('Waktu Terjadi', l.waktuTerjadi); baris('Waktu Diketahui', l.waktuDiketahui);
+  baris('Nama Pelapor', l.namaPelapor); baris('Telp Pelapor', l.telpPelapor); baris('Asal Pelapor', l.asalPelapor);
+  baris('Petugas Penerima', l.namaPetugas); baris('No. ID Petugas', l.idPetugas);
+  judul('B. KONDISI SAAT PERTAMA DIKETAHUI'); baris('Kondisi Awal', l.kondisiAwal);
+  judul('C. KRONOLOGI'); daftarTeks((l.kronologi || []).map(k => '[' + (k.waktu || '-') + '] ' + (k.uraian || '-')));
+  judul('D. TINDAKAN AWAL');
+  baris('Tindakan Keselamatan', l.tindakanKeselamatan); baris('Tindakan Pengamanan', l.tindakanPengamanan);
+  const pd = l.pihakDihubungi || {};
+  baris('Pihak Dihubungi', (pd.nama || '-') + ' | Waktu: ' + (pd.waktu || '-') + ' | Respons: ' + (pd.respons || '-'));
+  baris('Korban/Luka', l.korban); baris('Bahaya Saat Serah-Terima', l.bahayaSerahTerima);
+  judul('E. PIHAK TERLIBAT & BARANG/ASET');
+  daftarTeks((l.pihakTerlibat || []).map(p => (p.nama || '-') + ' | ' + (p.status || '-') + ' | ' + (p.kontak || '-') + ' | ' + (p.ket || '-')));
+  daftarTeks((l.barangAset || []).map(a => (a.nama || '-') + ' | ' + (a.id || '-') + ' | ' + (a.kondisi || '-') + ' | ' + (a.nilai || '-')));
+  judul('F. BUKTI/LAMPIRAN AWAL');
+  daftarTeks((l.buktiLampiran || []).map(b => (b.jenis || '-') + ' | ' + (b.sumber || '-') + ' | ' + (b.kepada || '-') + ' | ' + (b.waktu || '-')));
+  judul('G. PERNYATAAN & SERAH-TERIMA PELAKSANA');
+  const dok = l.dokumentasi || [];
+  if (dok.length) daftarTeks(dok.map(d => (d.keterangan || '-') + ' — ' + d.url));
+  else baris('Dokumentasi Foto', 'Tidak ada foto terlampir');
+  baris('Pembuat Laporan', l.namaPelaksanaSerah); baris('Waktu Serah', l.waktuSerah); baris('Danru Penerima', l.namaDanruAwal);
+
+  if (tingkat === 'A-I' || tingkat === 'A-K') {
+    judul('H. VERIFIKASI DAN TINDAKAN DANRU');
+    baris('Waktu Terima Danru', l.waktuTerimaDanru); baris('Waktu Tiba Danru', l.waktuTibaDanru);
+    baris('Klasifikasi Danru', l.klasifikasiDanru); baris('Perubahan Level', l.perubahanLevel);
+    baris('Status Lokasi', l.statusLokasi); baris('Personel Tambahan', l.personelTambahan);
+    baris('Hasil Verifikasi', l.hasilVerifikasi);
+    daftarTeks((l.tindakanDanru || []).map(t => '[' + (t.waktu || '-') + '] ' + (t.isi || '-')));
+    judul('I. ESKALASI DAN SERAH-TERIMA DANRU');
+    baris('Koordinator Eskalasi', (l.namaKoordEskalasi || '-') + ' / ' + (l.waktuKoordEskalasi || '-') + ' / ' + (l.arahanKoordEskalasi || '-'));
+    baris('PIC Eskalasi', (l.namaPicEskalasi || '-') + ' / ' + (l.waktuPicEskalasi || '-') + ' / ' + (l.arahanPicEskalasi || '-'));
+    baris('Eksternal Eskalasi', l.eksternalEskalasi); baris('No. Laporan Eksternal', l.noLaporanEksternal);
+    baris('Status Bukti', l.statusBukti); baris('Waktu Serah ke Koordinator', l.waktuSerahDanru);
+  }
+  if (tingkat === 'A-K') {
+    judul('J. TELAAH DAN KEPUTUSAN KOORDINATOR');
+    baris('Level Final', l.levelFinal); baris('Investigasi', l.investigasi); baris('Rekonsiliasi', l.rekonsiliasi);
+    baris('Wawancara', l.wawancara); baris('Pelaporan Eksternal', l.pelaporanEks); baris('Pengamanan Lanjutan', l.pengamananLanjut);
+    baris('LHII', l.lhii); baris('Catatan Koordinator', l.catatanKoord);
+    judul('K. DISTRIBUSI DAN STATUS');
+    baris('Distribusi', l.distribusiLaporan); baris('Status Akhir', l.statusAkhirLaporan);
+    baris('TTD Koordinator', l.namaTtdKoord); baris('TTD PIC', l.namaTtdPic); baris('TTD Lain', l.namaTtdLain);
+  }
+  doc.save('Laporan_' + String(l.nomorKejadian || 'kejadian').replace(/[^a-zA-Z0-9]+/g, '_') + '_' + tingkat + '.pdf');
 }
 
 async function muatRiwayatPatroliDetail() {
@@ -1223,7 +1374,7 @@ const ENTITAS_KELOLA = {
       // Keduanya dipakai karyawan sendiri untuk melihat slip gajinya lewat
       // index.html (cocokkan ke template Pengaturan Slip Gaji yang sesuai).
       ...(KLIEN_SLIP_GAJI_DIIZINKAN.includes(KODE_KLIEN) ? [
-        { key: 'jabatan', label: 'Jabatan', type: 'select', options: ['Komandan Peleton (Danton)', 'Wakil Komandan Peleton (Wadanton)', 'Komandan Regu (Danru)', 'Anggota'] },
+        { key: 'jabatan', label: 'Jabatan', type: 'select', options: ['Komandan Peleton (Danton)', 'Wakil Komandan Peleton (Wadanton)', 'Komandan Regu (Danru)', 'Koordinator', 'Anggota'] },
         { key: 'departemen', label: 'Departemen', type: 'select', options: ['Keamanan', 'Kebersihan', 'Administrasi', 'Pengemudi'] }
       ] : []),
       { key: 'pin', label: 'PIN (4 digit)', type: 'text' }

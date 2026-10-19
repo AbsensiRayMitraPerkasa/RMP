@@ -139,7 +139,7 @@
   .login-card{max-width:420px; margin:0 auto; width:100%; position:relative; z-index:10;}
   label{display:block; font-size:12.5px; color:var(--muted); font-weight:600; margin:9px 0 5px;}
   label:first-child{margin-top:0;}
-  select,input[type=text],input[type=password],input[type=date],input[type=tel],input[type=number],textarea{
+  select,input[type=text],input[type=password],input[type=date],input[type=tel],input[type=number],input[type=datetime-local],input[type=time],textarea{
     width:100%; background:#fbfcfe; border:1px solid var(--border); color:var(--text);
     padding:10px 12px; border-radius:var(--radius-sm); font-size:14.5px; font-family:var(--f-body);
   }
@@ -160,6 +160,19 @@
   .btn-tan{background:var(--tan); color:var(--tan-text);}
   .btn-outline{background:#fff; border-color:var(--border); color:var(--navy);}
   .btn-soft-green{background:var(--green-bg); border-color:rgba(26,154,86,.3); color:var(--green-text);}
+  .btn-soft-red{background:var(--red-bg); border-color:rgba(213,69,58,.3); color:var(--red-text);}
+  .btn-sm-outline{width:auto; margin-top:8px; padding:9px 14px; font-size:13px; background:#fff; border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--navy); font-weight:700; cursor:pointer;}
+  .dyn-box{background:#fbfcfe; border:1px dashed var(--border); border-radius:var(--radius-sm); padding:10px; margin-top:10px; position:relative;}
+  .dyn-box-title{font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;}
+  .dyn-box-title .btn-hapus{background:none; border:none; color:var(--red); font-weight:700; font-size:12px; cursor:pointer; padding:2px 6px;}
+  .dyn-box .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .dyn-foto-row{display:flex; align-items:center; gap:10px; margin-top:8px;}
+  .dyn-foto-row img{width:48px; height:48px; object-fit:cover; border-radius:8px; flex-shrink:0; border:1px solid var(--border);}
+  .dyn-foto-row .ket{flex:1; font-size:13px; color:var(--text);}
+  .kronologi-row{display:flex; gap:8px; align-items:flex-start; margin-top:8px;}
+  .kronologi-row input[type=time]{flex:0 0 100px;}
+  .kronologi-row input[type=text]{flex:1;}
+  .btn-x{background:none; border:none; color:var(--red); font-weight:700; font-size:16px; cursor:pointer; padding:0 6px; flex-shrink:0;}
   .btn-danger{background:#fff; border-color:var(--red); color:var(--red);}
   .btn-ghost{background:transparent; color:var(--muted); font-weight:600; font-size:13.5px; padding:8px;}
   .btn-row{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
@@ -524,6 +537,7 @@
       </div>
     </div>
     <button class="btn btn-soft-green hidden" id="btn-goto-patroli">🛡️ Lapor Patroli</button>
+    <button class="btn btn-soft-red hidden" id="btn-goto-laporan-kejadian">🚨 Laporan Kejadian</button>
     <button class="btn btn-outline hidden" id="btn-goto-kegiatan">🧹 Laporan Kegiatan</button>
   </div>
 
@@ -632,6 +646,241 @@
 </section>
 
 
+<section id="screen-laporan-kejadian" class="screen hidden">
+  <div class="top-back"><button data-back="home">←</button><h2>Laporan Kejadian</h2></div>
+
+  <!-- Step kamera bersama, dipakai tombol "+ Tambah Foto" di form Anggota -->
+  <div id="kejadian-step-foto" class="hidden">
+    <div class="card">
+      <div class="section-lbl">Foto Dokumentasi</div>
+      <div class="cam-wrap" id="kejadian-camwrap"><video id="kejadian-video-foto" autoplay playsinline muted></video><button class="cam-flip" id="btn-flip-kejadian-foto" type="button">🔄</button></div>
+      <canvas id="kejadian-canvas-foto" class="hidden"></canvas>
+      <img id="kejadian-shot-foto" class="cam-shot hidden">
+      <div class="cam-actions" id="kejadian-foto-shoot-wrap"><button class="btn btn-navy" id="btn-shoot-kejadian-foto">📸 Ambil Foto</button></div>
+      <div class="cam-actions hidden" id="kejadian-foto-retake-wrap">
+        <label>Keterangan Foto</label>
+        <input type="text" id="kejadian-foto-ket" placeholder="Contoh: Kondisi pos 1">
+        <button class="btn btn-outline" id="btn-retake-kejadian-foto">Ambil Ulang</button>
+        <button class="btn btn-navy" id="btn-simpan-kejadian-foto">Simpan Foto</button>
+      </div>
+      <button class="btn btn-ghost" id="btn-batal-kejadian-foto">Batal</button>
+    </div>
+  </div>
+
+  <!-- ===== TINGKAT ANGGOTA: Bagian A-G ===== -->
+  <div id="kejadian-view-anggota" class="hidden">
+    <div class="card"><div class="section-lbl">A. IDENTITAS DAN KLASIFIKASI AWAL</div></div>
+    <div class="card">
+      <label>Lokasi / Site</label><input type="text" id="kj-lokasi" required>
+      <label>Unit / Area</label><input type="text" id="kj-unit">
+      <label>Jenis Laporan</label>
+      <select id="kj-jenisLaporan" onchange="kjCekLainnya(this)">
+        <option value="">-- Pilih --</option>
+        <option>Kehilangan</option><option>Pencurian</option><option>Barang temuan</option>
+        <option>Perkelahian</option><option>Kebakaran</option><option>Medis</option><option value="Lainnya">Lainnya</option>
+      </select>
+      <input type="text" id="kj-jenisLaporan_lainnya" class="hidden" placeholder="Sebutkan jenis lainnya...">
+      <label>Level Kejadian</label>
+      <select id="kj-level"><option value="">-- Pilih --</option><option>Merah</option><option>Oranye</option><option>Kuning</option><option>Hijau</option></select>
+      <div class="grid-2">
+        <div><label>Waktu Terjadi</label><input type="datetime-local" id="kj-waktuTerjadi"></div>
+        <div><label>Waktu Diketahui</label><input type="datetime-local" id="kj-waktuDiketahui"></div>
+      </div>
+      <label>Nama Pelapor (Saksi/Korban)</label><input type="text" id="kj-namaPelapor">
+      <div class="grid-2">
+        <div><label>No. Telepon Pelapor</label><input type="tel" id="kj-telpPelapor"></div>
+        <div><label>Asal Pelapor</label><input type="text" id="kj-asalPelapor" placeholder="Mis: Pegawai"></div>
+      </div>
+      <div class="grid-2">
+        <div><label>Petugas Penerima Laporan</label><input type="text" id="kj-namaPetugas" required></div>
+        <div><label>No. ID Petugas</label><input type="text" id="kj-idPetugas"></div>
+      </div>
+    </div>
+
+    <div class="card"><div class="section-lbl">B. KONDISI SAAT PERTAMA DIKETAHUI</div>
+      <textarea id="kj-kondisiAwal" rows="3" placeholder="Apa yang terlihat/terdengar, posisi barang/orang..." required></textarea>
+    </div>
+
+    <div class="card">
+      <div class="section-lbl">C. KRONOLOGI KEJADIAN — URUT WAKTU</div>
+      <div id="kj-kronologi-container"></div>
+      <button type="button" class="btn-sm-outline" onclick="kjTambahKronologi()">+ Tambah Baris Kronologi</button>
+    </div>
+
+    <div class="card">
+      <div class="section-lbl">D. TINDAKAN AWAL</div>
+      <label>Tindakan Keselamatan</label>
+      <select id="kj-tindakanKeselamatan" onchange="kjCekLainnya(this)">
+        <option>Tidak diperlukan</option><option>Alarm</option><option>Evakuasi</option><option>Pertolongan pertama</option><option>APAR</option><option value="Lainnya">Lainnya</option>
+      </select>
+      <input type="text" id="kj-tindakanKeselamatan_lainnya" class="hidden" placeholder="Sebutkan tindakan lainnya...">
+      <label>Tindakan Pengamanan</label>
+      <select id="kj-tindakanPengamanan" onchange="kjCekLainnya(this)">
+        <option>Perimeter</option><option>Pembatasan akses</option><option>Pisahkan pihak</option><option>Jaga barang</option><option value="Lainnya">Lainnya</option>
+      </select>
+      <input type="text" id="kj-tindakanPengamanan_lainnya" class="hidden" placeholder="Sebutkan tindakan lainnya...">
+      <label>Pihak Dihubungi (opsional)</label>
+      <div class="grid-2"><input type="text" id="kj-pihakNama" placeholder="Nama/Instansi"><input type="time" id="kj-pihakWaktu"></div>
+      <input type="text" id="kj-pihakRespons" placeholder="Respons (mis: menuju lokasi)">
+      <label>Status Korban/Luka</label><textarea id="kj-korban" rows="2" placeholder="Tulis 'Tidak ada' jika aman..."></textarea>
+      <label>Bahaya Saat Serah-Terima (opsional)</label>
+      <textarea id="kj-bahayaSerahTerima" rows="2" placeholder="Potensi bahaya yang masih ada, atau ketik '-' jika aman..."></textarea>
+    </div>
+
+    <div class="card">
+      <div class="section-lbl">E. PIHAK TERLIBAT &amp; BARANG/ASET</div>
+      <label>Pihak Terlibat / Saksi</label>
+      <div id="kj-pihak-container"></div>
+      <button type="button" class="btn-sm-outline" onclick="kjTambahDyn('pihak')">+ Tambah Pihak Terlibat</button>
+      <label style="margin-top:14px;">Barang / Aset Terkait</label>
+      <div id="kj-aset-container"></div>
+      <button type="button" class="btn-sm-outline" onclick="kjTambahDyn('aset')">+ Tambah Barang/Aset</button>
+    </div>
+
+    <div class="card">
+      <div class="section-lbl">F. BUKTI / LAMPIRAN AWAL</div>
+      <div id="kj-bukti-container"></div>
+      <button type="button" class="btn-sm-outline" onclick="kjTambahDyn('bukti')">+ Tambah Bukti</button>
+    </div>
+
+    <div class="card">
+      <div class="section-lbl">G. PERNYATAAN &amp; SERAH-TERIMA PELAKSANA</div>
+      <label>Dokumentasi Foto</label>
+      <div id="kj-dok-container"></div>
+      <button type="button" class="btn-sm-outline" onclick="kjMulaiTambahFoto()">+ Tambah Foto Dokumentasi</button>
+      <label style="display:flex; align-items:flex-start; gap:10px; font-weight:normal; margin-top:14px;">
+        <input type="checkbox" id="kj-pernyataan" style="width:18px; height:18px; margin-top:2px;">
+        <span style="font-size:13px; color:var(--text);">Saya menyatakan laporan di atas saya tulis berdasarkan apa yang saya ketahui dan lakukan, tanpa menambah dugaan sebagai fakta.</span>
+      </label>
+      <div class="grid-2">
+        <div><label>Pembuat Laporan</label><input type="text" id="kj-namaPelaksanaSerah"></div>
+        <div><label>Waktu Serah Terima</label><input type="datetime-local" id="kj-waktuSerah"></div>
+      </div>
+      <label>Danru Penerima Kendali</label><input type="text" id="kj-namaDanruAwal">
+      <button class="btn btn-soft-red" id="btn-kirim-kejadian-anggota">Kirim Laporan Awal</button>
+    </div>
+  </div>
+
+  <!-- ===== TINGKAT DANRU: Bagian H-I ===== -->
+  <div id="kejadian-view-danru" class="hidden">
+    <div class="card">
+      <div class="section-lbl">Pilih Laporan Menunggu Verifikasi</div>
+      <select id="kj-danru-pilih"><option value="">Memuat daftar laporan...</option></select>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" id="btn-danru-muat">Muat Detail</button>
+        <button type="button" class="btn btn-outline" id="btn-danru-cetak">Cetak PDF (A-G)</button>
+      </div>
+    </div>
+    <div id="kj-danru-ringkasan" class="card hidden"></div>
+    <div id="kj-danru-form" class="hidden">
+      <div class="card">
+        <div class="section-lbl">H. VERIFIKASI DAN TINDAKAN DANRU</div>
+        <div class="grid-2">
+          <div><label>Waktu Menerima Laporan</label><input type="datetime-local" id="kj-waktuTerimaDanru"></div>
+          <div><label>Waktu Tiba/Ambil Kendali</label><input type="datetime-local" id="kj-waktuTibaDanru"></div>
+        </div>
+        <div class="grid-2">
+          <div><label>Klasifikasi Setelah Verifikasi</label><select id="kj-klasifikasiDanru"><option value="">-- Pilih --</option><option>Merah</option><option>Oranye</option><option>Kuning</option><option>Hijau</option></select></div>
+          <div><label>Perubahan dari Level Awal?</label>
+            <select id="kj-perubahanLevel" onchange="kjCekLainnya(this)"><option>Tidak</option><option value="Lainnya">Ya</option></select>
+            <input type="text" id="kj-perubahanLevel_lainnya" class="hidden" placeholder="Sebutkan alasannya...">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div><label>Status Lokasi</label><select id="kj-statusLokasi"><option>Aman</option><option>Terbatas</option><option>Ditutup</option><option>Diserahkan aparat</option></select></div>
+          <div><label>Personel Tambahan</label><input type="text" id="kj-personelTambahan" placeholder="Isi '-' jika tidak ada"></div>
+        </div>
+        <label>Hasil Verifikasi Danru</label><textarea id="kj-hasilVerifikasi" rows="3"></textarea>
+        <label>Tindakan / Perintah Danru &amp; Hasilnya</label>
+        <div id="kj-tindakanDanru-container"></div>
+        <button type="button" class="btn-sm-outline" onclick="kjTambahTindakanDanru()">+ Tambah Tindakan</button>
+      </div>
+      <div class="card">
+        <div class="section-lbl">I. ESKALASI DAN SERAH-TERIMA DANRU</div>
+        <div class="dyn-box"><div class="dyn-box-title">Laporan ke Koordinator</div>
+          <div class="grid-2"><input type="text" id="kj-namaKoordEskalasi" placeholder="Nama Koordinator"><input type="time" id="kj-waktuKoordEskalasi"></div>
+          <input type="text" id="kj-arahanKoordEskalasi" placeholder="Arahan">
+        </div>
+        <div class="dyn-box"><div class="dyn-box-title">Laporan ke PIC/Manajemen</div>
+          <div class="grid-2"><input type="text" id="kj-namaPicEskalasi" placeholder="Nama/Jabatan"><input type="time" id="kj-waktuPicEskalasi"></div>
+          <input type="text" id="kj-arahanPicEskalasi" placeholder="Arahan">
+        </div>
+        <label>Pihak Eksternal Dihubungi</label>
+        <select id="kj-eksternalEskalasi" onchange="kjCekLainnya(this)"><option>Tidak ada</option><option>Polisi</option><option>Damkar</option><option>Medis</option><option value="Lainnya">Lainnya</option></select>
+        <input type="text" id="kj-eksternalEskalasi_lainnya" class="hidden" placeholder="Sebutkan pihak lainnya...">
+        <label>Nomor Laporan / Petugas</label><input type="text" id="kj-noLaporanEksternal">
+        <label>Status Bukti / CCTV</label>
+        <select id="kj-statusBukti" onchange="kjCekLainnya(this)"><option>Sudah diamankan</option><option>Proses</option><option>Tidak ada</option><option value="Lainnya">Terkendala</option></select>
+        <input type="text" id="kj-statusBukti_lainnya" class="hidden" placeholder="Sebutkan kendalanya...">
+        <label>Waktu Serah ke Koordinator</label><input type="datetime-local" id="kj-waktuSerahDanru">
+        <button class="btn btn-soft-red" id="btn-kirim-kejadian-danru">Simpan Verifikasi Danru</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TINGKAT KOORDINATOR: Bagian J-K ===== -->
+  <div id="kejadian-view-koordinator" class="hidden">
+    <div class="card">
+      <div class="section-lbl">Pilih Laporan Terverifikasi Danru</div>
+      <select id="kj-koord-pilih"><option value="">Memuat daftar laporan...</option></select>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" id="btn-koord-muat">Muat Detail</button>
+        <button type="button" class="btn btn-outline" id="btn-koord-cetak">Cetak PDF (A-I)</button>
+      </div>
+    </div>
+    <div id="kj-koord-ringkasan" class="card hidden"></div>
+    <div id="kj-koord-form" class="hidden">
+      <div class="card">
+        <div class="section-lbl">J. TELAAH DAN KEPUTUSAN KOORDINATOR</div>
+        <div class="grid-2">
+          <div><label>Level Final Sementara</label><select id="kj-levelFinal"><option value="">-- Pilih --</option><option>Merah</option><option>Oranye</option><option>Kuning</option><option>Hijau</option></select></div>
+          <div><label>Investigasi Internal</label>
+            <select id="kj-investigasi" onchange="kjCekLainnya(this)"><option>Tidak diperlukan</option><option value="Lainnya">Diperlukan</option></select>
+            <input type="text" id="kj-investigasi_lainnya" class="hidden" placeholder="Ketua/anggota tim...">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div><label>SO / Rekonsiliasi</label>
+            <select id="kj-rekonsiliasi" onchange="kjCekLainnya(this)"><option>Tidak</option><option value="Lainnya">Ya</option></select>
+            <input type="text" id="kj-rekonsiliasi_lainnya" class="hidden" placeholder="Unit penanggung jawab & batas waktu...">
+          </div>
+          <div><label>Wawancara / Klarifikasi</label>
+            <select id="kj-wawancara" onchange="kjCekLainnya(this)"><option>Tidak</option><option value="Lainnya">Ya</option></select>
+            <input type="text" id="kj-wawancara_lainnya" class="hidden" placeholder="Sebutkan pihak...">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div><label>Pelaporan Eksternal</label>
+            <select id="kj-pelaporanEks" onchange="kjCekLainnya(this)"><option>Tidak</option><option>Polisi</option><option>Damkar</option><option>K3</option><option value="Lainnya">Lainnya</option></select>
+            <input type="text" id="kj-pelaporanEks_lainnya" class="hidden" placeholder="Sebutkan & siapa yang memutuskan...">
+          </div>
+          <div><label>Pengamanan Lanjutan</label>
+            <select id="kj-pengamananLanjut" onchange="kjCekLainnya(this)"><option>Tidak ada</option><option>Tambah personel</option><option>Tutup area</option><option>Simpan bukti</option><option>Pantau CCTV</option><option value="Lainnya">Lainnya</option></select>
+            <input type="text" id="kj-pengamananLanjut_lainnya" class="hidden" placeholder="Sebutkan tindakan...">
+          </div>
+        </div>
+        <label>LHII (Laporan Hasil Investigasi Internal)</label>
+        <select id="kj-lhii" onchange="kjCekLainnya(this)"><option>Tidak</option><option>Awal 1x24 jam</option><option>Final 3x24 jam</option><option value="Lainnya">Tenggat Lain</option></select>
+        <input type="text" id="kj-lhii_lainnya" class="hidden" placeholder="Sebutkan tenggat waktu...">
+        <label>Catatan Koordinator</label><textarea id="kj-catatanKoord" rows="3"></textarea>
+      </div>
+      <div class="card">
+        <div class="section-lbl">K. DISTRIBUSI DAN STATUS</div>
+        <label>Distribusi Kepada</label><input type="text" id="kj-distribusiLaporan" placeholder="Mis: Pimpinan, PIC, HR, Legal...">
+        <label>Status Laporan</label>
+        <select id="kj-statusAkhirLaporan"><option>Terkendali/monitor</option><option>Investigasi berjalan</option><option>Diserahkan pihak berwenang</option><option>Siap ditutup</option></select>
+        <div class="grid-2">
+          <div><label>PIC/Pejabat Pengguna Jasa</label><input type="text" id="kj-namaTtdPic"></div>
+          <div><label>Penerima Lain (bila ada)</label><input type="text" id="kj-namaTtdLain"></div>
+        </div>
+        <button class="btn btn-soft-red" id="btn-kirim-kejadian-koordinator">Simpan Telaah Koordinator</button>
+        <button class="btn btn-outline" id="btn-koord-cetak-final">Cetak PDF Lengkap (A-K)</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+
 <section id="screen-kegiatan" class="screen hidden">
   <div class="top-back"><button data-back="home">←</button><h2>Laporan Kegiatan</h2></div>
 
@@ -717,6 +966,9 @@ const KODE_KLIEN = new URLSearchParams(location.search).get('klien') || '';
 // Menu "Slip Gaji" (lihat #card-slipgaji & btn-slipgaji) baru dipakai klien
 // SOEROJO HOSPITAL - sama dengan admin.html.
 const KLIEN_SLIP_GAJI_DIIZINKAN = ['soerojo-hospital'];
+// Menu "Laporan Kejadian" (lihat #btn-goto-laporan-kejadian & #screen-laporan-kejadian)
+// baru dipakai klien SOEROJO HOSPITAL juga - sama dengan admin.html.
+const KLIEN_LAPORAN_KEJADIAN_DIIZINKAN = ['soerojo-hospital'];
 let logoKlienAktif = '';
 if (KLIEN_SLIP_GAJI_DIIZINKAN.includes(KODE_KLIEN)) {
   document.getElementById('card-slipgaji').classList.remove('hidden');
@@ -774,7 +1026,7 @@ if (KODE_KLIEN) {
   } catch(e){}
 }
 
-let sesi = { nama: '', pin: '', bagianKerja: '' };
+let sesi = { nama: '', pin: '', bagianKerja: '', jabatan: '' };
 let klienValid = false;
 let cameraStreams = {};
 let daftarLokasiKerja = [];
@@ -888,10 +1140,12 @@ function showScreen(id) {
 
   if (id === 'patroli') resetPatroliScreen();
   if (id === 'kegiatan') resetKegiatanScreen();
+  if (id === 'laporan-kejadian') resetLaporanKejadianScreen();
   if (id === 'home') muatHome();
 }
 document.querySelectorAll('[data-back]').forEach(el => el.addEventListener('click', () => showScreen(el.dataset.back)));
 document.getElementById('btn-goto-patroli').addEventListener('click', () => showScreen('patroli'));
+document.getElementById('btn-goto-laporan-kejadian').addEventListener('click', () => showScreen('laporan-kejadian'));
 document.getElementById('btn-goto-kegiatan').addEventListener('click', () => showScreen('kegiatan'));
 document.getElementById('link-daftar').addEventListener('click', (e) => { e.preventDefault(); showScreen('daftar'); });
 document.getElementById('back-daftar').addEventListener('click', () => showScreen('login'));
@@ -916,7 +1170,7 @@ async function syncData() {
 }
 function doLogout() {
   if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-  sesi = { nama: '', pin: '', bagianKerja: '' };
+  sesi = { nama: '', pin: '', bagianKerja: '', jabatan: '' };
   
   // Hapus sesi lokal agar saat reload minta PIN ulang, tapi nama tetap terkunci
   localStorage.removeItem('ray_karyawan_session_' + KODE_KLIEN); 
@@ -1249,7 +1503,7 @@ document.getElementById('btn-login').addEventListener('click', async () => {
     kirimLogKeSistem('ERROR_LOGIN', res.pesan || 'Login gagal.', nama);
     return;
   }
-  sesi = { nama, pin, bagianKerja: res.bagianKerja, fotoUrl: res.fotoUrl || '', status: res.status };
+  sesi = { nama, pin, bagianKerja: res.bagianKerja, jabatan: res.jabatan || '', fotoUrl: res.fotoUrl || '', status: res.status };
   
   // Mengunci perangkat ini untuk nama yang login
   localStorage.setItem('ray_bind_nama_' + KODE_KLIEN, nama);
@@ -1290,6 +1544,8 @@ async function muatDataMasterUntukSesi() {
 
   document.getElementById('btn-goto-patroli').classList.toggle('hidden', sesi.bagianKerja !== 'Security');
   document.getElementById('btn-goto-kegiatan').classList.toggle('hidden', sesi.bagianKerja !== 'Cleaning Service');
+  document.getElementById('btn-goto-laporan-kejadian').classList.toggle('hidden',
+    !(KLIEN_LAPORAN_KEJADIAN_DIIZINKAN.includes(KODE_KLIEN) && sesi.bagianKerja === 'Security'));
 
   if (sesi.bagianKerja === 'Security') {
     const resP = await api('daftarTitikPatroli', {}); daftarTitikPatroli = resP.daftar || [];
@@ -1362,6 +1618,7 @@ async function refreshStatus() {
   if (res.sukses) {
     sesi.status = res.status;
     sesi.bagianKerja = res.bagianKerja;
+    sesi.jabatan = res.jabatan || '';
     sesi.fotoUrl = res.fotoUrl || '';
     localStorage.setItem('ray_karyawan_session_' + KODE_KLIEN, JSON.stringify(sesi));
   }
@@ -1914,6 +2171,427 @@ document.getElementById('btn-kirim-kegiatan').addEventListener('click', async ()
   showToast(res.pesan, res.sukses);
   if (res.sukses) setTimeout(() => showScreen('home'), 1000);
 });
+
+// ========== LAPORAN KEJADIAN (khusus klien SOEROJO HOSPITAL, lihat juga api/index.ts) ==========
+// Berjenjang Anggota -> Danru -> Koordinator, dibedakan dari sesi.jabatan (bukan
+// portal terpisah). Satu nomor kejadian = satu baris data_kejadian yang diupdate
+// progresif tiap tingkat.
+let kejadianState = { dokumentasi: [], fotoAktif: null, nomorAktif: null, laporanAktif: null };
+
+function kjCekLainnya(selectEl) {
+  const inp = document.getElementById(selectEl.id + '_lainnya');
+  if (!inp) return;
+  if (selectEl.value === 'Lainnya') { inp.classList.remove('hidden'); } else { inp.classList.add('hidden'); inp.value = ''; }
+}
+function kjNilaiFinal(id) {
+  const el = document.getElementById(id);
+  if (!el) return '';
+  if (el.value === 'Lainnya') {
+    const lain = document.getElementById(id + '_lainnya');
+    return 'Lainnya: ' + (lain ? lain.value.trim() : '');
+  }
+  return el.value;
+}
+function kjTambahKronologi() {
+  const row = document.createElement('div');
+  row.className = 'kronologi-row';
+  row.innerHTML = '<input type="time" class="kj-waktu-krono"><input type="text" class="kj-uraian-krono" placeholder="Uraian fakta/tindakan..."><button type="button" class="btn-x">✕</button>';
+  row.querySelector('.btn-x').addEventListener('click', () => row.remove());
+  document.getElementById('kj-kronologi-container').appendChild(row);
+}
+function kjTambahTindakanDanru() {
+  const row = document.createElement('div');
+  row.className = 'kronologi-row tindakan-danru-row';
+  row.innerHTML = '<input type="time" class="kj-waktu-tindakan"><input type="text" class="kj-isi-tindakan" placeholder="Perintah/tindakan & hasilnya..."><button type="button" class="btn-x">✕</button>';
+  row.querySelector('.btn-x').addEventListener('click', () => row.remove());
+  document.getElementById('kj-tindakanDanru-container').appendChild(row);
+}
+const KJ_DYN_FIELDS = {
+  pihak: [['nama', 'Nama'], ['status', 'Status/peran'], ['kontak', 'Kontak/unit'], ['ket', 'Keterangan singkat']],
+  aset: [['nama', 'Barang/aset'], ['id', 'Identitas/nomor'], ['kondisi', 'Kondisi/jumlah'], ['nilai', 'Nilai sementara']],
+  bukti: [['jenis', 'Jenis/deskripsi'], ['sumber', 'Sumber/lokasi'], ['kepada', 'Diserahkan kepada'], ['waktu', '', 'datetime-local']],
+};
+function kjTambahDyn(tipe) {
+  const box = document.createElement('div');
+  box.className = 'dyn-box ' + tipe + '-row';
+  const fieldsHtml = KJ_DYN_FIELDS[tipe].map(f => {
+    const tipeInput = f[2] || 'text';
+    return '<input type="' + tipeInput + '" class="f-' + f[0] + '"' + (f[1] ? ' placeholder="' + f[1] + '"' : '') + '>';
+  }).join('');
+  box.innerHTML = '<div class="dyn-box-title"><span>Data</span><button type="button" class="btn-hapus">Hapus</button></div><div class="grid-2">' + fieldsHtml + '</div>';
+  box.querySelector('.btn-hapus').addEventListener('click', () => box.remove());
+  document.getElementById('kj-' + tipe + '-container').appendChild(box);
+}
+function kjKumpulkanKronologi() {
+  return Array.from(document.querySelectorAll('#kj-kronologi-container .kronologi-row')).map(r => ({
+    waktu: r.querySelector('.kj-waktu-krono').value, uraian: r.querySelector('.kj-uraian-krono').value,
+  })).filter(x => x.waktu || x.uraian);
+}
+function kjKumpulkanTindakanDanru() {
+  return Array.from(document.querySelectorAll('#kj-tindakanDanru-container .tindakan-danru-row')).map(r => ({
+    waktu: r.querySelector('.kj-waktu-tindakan').value, isi: r.querySelector('.kj-isi-tindakan').value,
+  })).filter(x => x.waktu || x.isi);
+}
+function kjKumpulkanDyn(tipe) {
+  const keys = KJ_DYN_FIELDS[tipe].map(f => f[0]);
+  return Array.from(document.querySelectorAll('#kj-' + tipe + '-container .dyn-box')).map(box => {
+    const o = {};
+    keys.forEach(k => { const el = box.querySelector('.f-' + k); o[k] = el ? el.value : ''; });
+    return o;
+  }).filter(o => Object.values(o).some(v => v));
+}
+
+function kjRenderDokumentasi() {
+  const c = document.getElementById('kj-dok-container');
+  c.innerHTML = '';
+  kejadianState.dokumentasi.forEach((d, i) => {
+    const row = document.createElement('div');
+    row.className = 'dyn-foto-row';
+    const img = document.createElement('img'); img.src = 'data:image/jpeg;base64,' + d.base64;
+    const span = document.createElement('span'); span.className = 'ket'; span.textContent = d.keterangan;
+    const btnX = document.createElement('button'); btnX.type = 'button'; btnX.className = 'btn-x'; btnX.textContent = '✕';
+    btnX.addEventListener('click', () => { kejadianState.dokumentasi.splice(i, 1); kjRenderDokumentasi(); });
+    row.appendChild(img); row.appendChild(span); row.appendChild(btnX);
+    c.appendChild(row);
+  });
+}
+function kjMulaiTambahFoto() {
+  document.getElementById('kejadian-view-anggota').classList.add('hidden');
+  document.getElementById('kejadian-step-foto').classList.remove('hidden');
+  document.getElementById('kejadian-shot-foto').classList.add('hidden');
+  document.getElementById('kejadian-camwrap').classList.remove('hidden');
+  document.getElementById('kejadian-foto-shoot-wrap').classList.remove('hidden');
+  document.getElementById('kejadian-foto-retake-wrap').classList.add('hidden');
+  document.getElementById('kejadian-foto-ket').value = '';
+  kejadianState.fotoAktif = null;
+  startCamera(document.getElementById('kejadian-video-foto'), 'kejadianFoto');
+  document.getElementById('btn-flip-kejadian-foto').onclick = () => toggleCamera(document.getElementById('kejadian-video-foto'), 'kejadianFoto');
+}
+document.getElementById('btn-shoot-kejadian-foto').addEventListener('click', () => {
+  const dataUrl = captureFrame(document.getElementById('kejadian-video-foto'), document.getElementById('kejadian-canvas-foto'));
+  kejadianState.fotoAktif = base64Of(dataUrl);
+  document.getElementById('kejadian-shot-foto').src = dataUrl;
+  document.getElementById('kejadian-shot-foto').classList.remove('hidden');
+  document.getElementById('kejadian-camwrap').classList.add('hidden');
+  document.getElementById('kejadian-foto-shoot-wrap').classList.add('hidden');
+  document.getElementById('kejadian-foto-retake-wrap').classList.remove('hidden');
+  stopCameraByKey('kejadianFoto');
+});
+document.getElementById('btn-retake-kejadian-foto').addEventListener('click', async () => {
+  kejadianState.fotoAktif = null;
+  document.getElementById('kejadian-shot-foto').classList.add('hidden');
+  document.getElementById('kejadian-camwrap').classList.remove('hidden');
+  document.getElementById('kejadian-foto-shoot-wrap').classList.remove('hidden');
+  document.getElementById('kejadian-foto-retake-wrap').classList.add('hidden');
+  await startCamera(document.getElementById('kejadian-video-foto'), 'kejadianFoto');
+});
+document.getElementById('btn-batal-kejadian-foto').addEventListener('click', () => {
+  stopCameraByKey('kejadianFoto');
+  document.getElementById('kejadian-step-foto').classList.add('hidden');
+  document.getElementById('kejadian-view-anggota').classList.remove('hidden');
+});
+document.getElementById('btn-simpan-kejadian-foto').addEventListener('click', () => {
+  if (!kejadianState.fotoAktif) return showToast('Ambil foto dulu.', false);
+  const ket = document.getElementById('kejadian-foto-ket').value.trim() || '-';
+  kejadianState.dokumentasi.push({ base64: kejadianState.fotoAktif, mimeType: 'image/jpeg', keterangan: ket });
+  kejadianState.fotoAktif = null;
+  kjRenderDokumentasi();
+  document.getElementById('kejadian-step-foto').classList.add('hidden');
+  document.getElementById('kejadian-view-anggota').classList.remove('hidden');
+});
+
+function resetLaporanKejadianScreen() {
+  document.getElementById('kejadian-step-foto').classList.add('hidden');
+  document.getElementById('kejadian-view-anggota').classList.add('hidden');
+  document.getElementById('kejadian-view-danru').classList.add('hidden');
+  document.getElementById('kejadian-view-koordinator').classList.add('hidden');
+  const jab = sesi.jabatan || 'Anggota';
+  if (jab === 'Komandan Regu (Danru)') {
+    document.getElementById('kejadian-view-danru').classList.remove('hidden');
+    document.getElementById('kj-danru-ringkasan').classList.add('hidden');
+    document.getElementById('kj-danru-form').classList.add('hidden');
+    kjMuatDaftar('kj-danru-pilih');
+  } else if (jab === 'Koordinator') {
+    document.getElementById('kejadian-view-koordinator').classList.remove('hidden');
+    document.getElementById('kj-koord-ringkasan').classList.add('hidden');
+    document.getElementById('kj-koord-form').classList.add('hidden');
+    kjMuatDaftar('kj-koord-pilih');
+  } else {
+    document.getElementById('kejadian-view-anggota').classList.remove('hidden');
+    kejadianState = { dokumentasi: [], fotoAktif: null, nomorAktif: null, laporanAktif: null };
+    ['kj-lokasi', 'kj-unit', 'kj-waktuTerjadi', 'kj-waktuDiketahui', 'kj-namaPelapor', 'kj-telpPelapor',
+      'kj-asalPelapor', 'kj-idPetugas', 'kj-kondisiAwal', 'kj-pihakNama', 'kj-pihakWaktu', 'kj-pihakRespons',
+      'kj-korban', 'kj-bahayaSerahTerima', 'kj-waktuSerah', 'kj-namaDanruAwal'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('kj-jenisLaporan').value = ''; document.getElementById('kj-jenisLaporan_lainnya').classList.add('hidden'); document.getElementById('kj-jenisLaporan_lainnya').value = '';
+    document.getElementById('kj-level').value = '';
+    document.getElementById('kj-namaPetugas').value = sesi.nama || '';
+    document.getElementById('kj-tindakanKeselamatan').value = 'Tidak diperlukan';
+    document.getElementById('kj-tindakanPengamanan').value = 'Perimeter';
+    document.getElementById('kj-pernyataan').checked = false;
+    document.getElementById('kj-namaPelaksanaSerah').value = sesi.nama || '';
+    document.getElementById('kj-kronologi-container').innerHTML = '';
+    document.getElementById('kj-pihak-container').innerHTML = '';
+    document.getElementById('kj-aset-container').innerHTML = '';
+    document.getElementById('kj-bukti-container').innerHTML = '';
+    kjRenderDokumentasi();
+    kjTambahKronologi();
+    kjTambahDyn('pihak'); kjTambahDyn('aset'); kjTambahDyn('bukti');
+    const btn = document.getElementById('btn-kirim-kejadian-anggota');
+    btn.disabled = false; btn.textContent = 'Kirim Laporan Awal';
+  }
+}
+
+async function kjMuatDaftar(selectId) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = '<option value="">Memuat...</option>';
+  const res = await api('daftarLaporanKejadianSaya', { nama: sesi.nama, pin: sesi.pin });
+  const daftar = res.daftar || [];
+  sel.innerHTML = '<option value="">-- Pilih Nomor Kejadian --</option>' +
+    daftar.map(d => '<option value="' + d.nomorKejadian + '">' + d.nomorKejadian + ' — ' + (d.lokasi || '-') + '</option>').join('');
+}
+function kjRingkasanHtml(l) {
+  const baris = (label, val) => '<div style="margin-bottom:4px; font-size:13px;"><b>' + label + ':</b> ' + (val || '-') + '</div>';
+  let html = baris('Nomor', l.nomorKejadian) + baris('Lokasi', l.lokasi) + baris('Unit', l.unit) +
+    baris('Jenis Laporan', l.jenisLaporan) + baris('Level Awal', l.levelAwal) +
+    baris('Kondisi Awal', l.kondisiAwal) + baris('Status', l.status);
+  if (l.klasifikasiDanru) html += baris('Klasifikasi Danru', l.klasifikasiDanru) + baris('Hasil Verifikasi Danru', l.hasilVerifikasi);
+  return html;
+}
+document.getElementById('btn-danru-muat').addEventListener('click', async () => {
+  const nomor = document.getElementById('kj-danru-pilih').value;
+  if (!nomor) return showToast('Pilih nomor kejadian dulu.', false);
+  const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
+  if (!res.sukses) return showToast(res.pesan, false);
+  kejadianState.nomorAktif = nomor; kejadianState.laporanAktif = res.laporan;
+  document.getElementById('kj-danru-ringkasan').innerHTML = kjRingkasanHtml(res.laporan);
+  document.getElementById('kj-danru-ringkasan').classList.remove('hidden');
+  document.getElementById('kj-danru-form').classList.remove('hidden');
+  document.getElementById('kj-waktuTerimaDanru').value = ''; document.getElementById('kj-waktuTibaDanru').value = '';
+  document.getElementById('kj-klasifikasiDanru').value = res.laporan.levelAwal || '';
+  document.getElementById('kj-perubahanLevel').value = 'Tidak'; document.getElementById('kj-perubahanLevel_lainnya').classList.add('hidden');
+  document.getElementById('kj-statusLokasi').value = 'Aman';
+  document.getElementById('kj-personelTambahan').value = ''; document.getElementById('kj-hasilVerifikasi').value = '';
+  document.getElementById('kj-tindakanDanru-container').innerHTML = ''; kjTambahTindakanDanru();
+  document.getElementById('kj-namaKoordEskalasi').value = ''; document.getElementById('kj-waktuKoordEskalasi').value = ''; document.getElementById('kj-arahanKoordEskalasi').value = '';
+  document.getElementById('kj-namaPicEskalasi').value = ''; document.getElementById('kj-waktuPicEskalasi').value = ''; document.getElementById('kj-arahanPicEskalasi').value = '';
+  document.getElementById('kj-eksternalEskalasi').value = 'Tidak ada'; document.getElementById('kj-eksternalEskalasi_lainnya').classList.add('hidden');
+  document.getElementById('kj-noLaporanEksternal').value = '';
+  document.getElementById('kj-statusBukti').value = 'Sudah diamankan'; document.getElementById('kj-statusBukti_lainnya').classList.add('hidden');
+  document.getElementById('kj-waktuSerahDanru').value = '';
+  const btn = document.getElementById('btn-kirim-kejadian-danru'); btn.disabled = false; btn.textContent = 'Simpan Verifikasi Danru';
+});
+document.getElementById('btn-danru-cetak').addEventListener('click', async () => {
+  const nomor = document.getElementById('kj-danru-pilih').value;
+  if (!nomor) return showToast('Pilih nomor kejadian dulu.', false);
+  const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
+  if (!res.sukses) return showToast(res.pesan, false);
+  kjGambarPdf(res.laporan, 'A-G');
+});
+document.getElementById('btn-kirim-kejadian-danru').addEventListener('click', async () => {
+  const nomor = kejadianState.nomorAktif;
+  if (!nomor) return showToast('Muat detail laporan dulu.', false);
+  const btn = document.getElementById('btn-kirim-kejadian-danru');
+  setBusy(btn, true, 'Menyimpan...', 'Simpan Verifikasi Danru');
+  const res = await api('simpanLaporanKejadianDanru', {
+    nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor,
+    waktuTerimaDanru: document.getElementById('kj-waktuTerimaDanru').value,
+    waktuTibaDanru: document.getElementById('kj-waktuTibaDanru').value,
+    klasifikasiDanru: document.getElementById('kj-klasifikasiDanru').value,
+    perubahanLevel: kjNilaiFinal('kj-perubahanLevel'),
+    statusLokasi: document.getElementById('kj-statusLokasi').value,
+    personelTambahan: document.getElementById('kj-personelTambahan').value,
+    hasilVerifikasi: document.getElementById('kj-hasilVerifikasi').value,
+    tindakanDanru: kjKumpulkanTindakanDanru(),
+    namaKoordEskalasi: document.getElementById('kj-namaKoordEskalasi').value,
+    waktuKoordEskalasi: document.getElementById('kj-waktuKoordEskalasi').value,
+    arahanKoordEskalasi: document.getElementById('kj-arahanKoordEskalasi').value,
+    namaPicEskalasi: document.getElementById('kj-namaPicEskalasi').value,
+    waktuPicEskalasi: document.getElementById('kj-waktuPicEskalasi').value,
+    arahanPicEskalasi: document.getElementById('kj-arahanPicEskalasi').value,
+    eksternalEskalasi: kjNilaiFinal('kj-eksternalEskalasi'),
+    noLaporanEksternal: document.getElementById('kj-noLaporanEksternal').value,
+    statusBukti: kjNilaiFinal('kj-statusBukti'),
+    waktuSerahDanru: document.getElementById('kj-waktuSerahDanru').value,
+  });
+  setBusy(btn, false, '', 'Simpan Verifikasi Danru');
+  showToast(res.pesan, res.sukses);
+  if (res.sukses) setTimeout(() => showScreen('home'), 1200);
+});
+
+document.getElementById('btn-koord-muat').addEventListener('click', async () => {
+  const nomor = document.getElementById('kj-koord-pilih').value;
+  if (!nomor) return showToast('Pilih nomor kejadian dulu.', false);
+  const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
+  if (!res.sukses) return showToast(res.pesan, false);
+  kejadianState.nomorAktif = nomor; kejadianState.laporanAktif = res.laporan;
+  document.getElementById('kj-koord-ringkasan').innerHTML = kjRingkasanHtml(res.laporan);
+  document.getElementById('kj-koord-ringkasan').classList.remove('hidden');
+  document.getElementById('kj-koord-form').classList.remove('hidden');
+  document.getElementById('kj-levelFinal').value = res.laporan.klasifikasiDanru || res.laporan.levelAwal || '';
+  document.getElementById('kj-investigasi').value = 'Tidak diperlukan'; document.getElementById('kj-investigasi_lainnya').classList.add('hidden');
+  document.getElementById('kj-rekonsiliasi').value = 'Tidak'; document.getElementById('kj-rekonsiliasi_lainnya').classList.add('hidden');
+  document.getElementById('kj-wawancara').value = 'Tidak'; document.getElementById('kj-wawancara_lainnya').classList.add('hidden');
+  document.getElementById('kj-pelaporanEks').value = 'Tidak'; document.getElementById('kj-pelaporanEks_lainnya').classList.add('hidden');
+  document.getElementById('kj-pengamananLanjut').value = 'Tidak ada'; document.getElementById('kj-pengamananLanjut_lainnya').classList.add('hidden');
+  document.getElementById('kj-lhii').value = 'Tidak'; document.getElementById('kj-lhii_lainnya').classList.add('hidden');
+  document.getElementById('kj-catatanKoord').value = ''; document.getElementById('kj-distribusiLaporan').value = '';
+  document.getElementById('kj-statusAkhirLaporan').value = 'Terkendali/monitor';
+  document.getElementById('kj-namaTtdPic').value = ''; document.getElementById('kj-namaTtdLain').value = '';
+  const btn = document.getElementById('btn-kirim-kejadian-koordinator'); btn.disabled = false; btn.textContent = 'Simpan Telaah Koordinator';
+});
+document.getElementById('btn-koord-cetak').addEventListener('click', async () => {
+  const nomor = document.getElementById('kj-koord-pilih').value;
+  if (!nomor) return showToast('Pilih nomor kejadian dulu.', false);
+  const res = await api('ambilLaporanKejadian', { nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor });
+  if (!res.sukses) return showToast(res.pesan, false);
+  kjGambarPdf(res.laporan, 'A-I');
+});
+document.getElementById('btn-koord-cetak-final').addEventListener('click', () => {
+  if (!kejadianState.laporanAktif) return showToast('Muat detail laporan dulu.', false);
+  kjGambarPdf(kejadianState.laporanAktif, 'A-K');
+});
+document.getElementById('btn-kirim-kejadian-koordinator').addEventListener('click', async () => {
+  const nomor = kejadianState.nomorAktif;
+  if (!nomor) return showToast('Muat detail laporan dulu.', false);
+  const btn = document.getElementById('btn-kirim-kejadian-koordinator');
+  setBusy(btn, true, 'Menyimpan...', 'Simpan Telaah Koordinator');
+  const res = await api('simpanLaporanKejadianKoordinator', {
+    nama: sesi.nama, pin: sesi.pin, nomorKejadian: nomor,
+    levelFinal: document.getElementById('kj-levelFinal').value,
+    investigasi: kjNilaiFinal('kj-investigasi'),
+    rekonsiliasi: kjNilaiFinal('kj-rekonsiliasi'),
+    wawancara: kjNilaiFinal('kj-wawancara'),
+    pelaporanEks: kjNilaiFinal('kj-pelaporanEks'),
+    pengamananLanjut: kjNilaiFinal('kj-pengamananLanjut'),
+    lhii: kjNilaiFinal('kj-lhii'),
+    catatanKoord: document.getElementById('kj-catatanKoord').value,
+    distribusiLaporan: document.getElementById('kj-distribusiLaporan').value,
+    statusAkhirLaporan: document.getElementById('kj-statusAkhirLaporan').value,
+    namaTtdPic: document.getElementById('kj-namaTtdPic').value,
+    namaTtdLain: document.getElementById('kj-namaTtdLain').value,
+  });
+  setBusy(btn, false, '', 'Simpan Telaah Koordinator');
+  showToast(res.pesan, res.sukses);
+  if (res.sukses) setTimeout(() => showScreen('home'), 1200);
+});
+
+document.getElementById('btn-kirim-kejadian-anggota').addEventListener('click', async () => {
+  if (!document.getElementById('kj-pernyataan').checked) return showToast('Centang pernyataan persetujuan dulu.', false);
+  if (!document.getElementById('kj-lokasi').value || !document.getElementById('kj-namaPetugas').value) return showToast('Lokasi dan Nama Petugas Penerima wajib diisi.', false);
+  const btn = document.getElementById('btn-kirim-kejadian-anggota');
+  setBusy(btn, true, 'Mengirim...', 'Kirim Laporan Awal');
+  const res = await api('simpanLaporanKejadianAnggota', {
+    nama: sesi.nama, pin: sesi.pin,
+    lokasi: document.getElementById('kj-lokasi').value, unit: document.getElementById('kj-unit').value,
+    jenisLaporan: kjNilaiFinal('kj-jenisLaporan'), level: document.getElementById('kj-level').value,
+    waktuTerjadi: document.getElementById('kj-waktuTerjadi').value, waktuDiketahui: document.getElementById('kj-waktuDiketahui').value,
+    namaPelapor: document.getElementById('kj-namaPelapor').value, telpPelapor: document.getElementById('kj-telpPelapor').value,
+    asalPelapor: document.getElementById('kj-asalPelapor').value, namaPetugas: document.getElementById('kj-namaPetugas').value,
+    idPetugas: document.getElementById('kj-idPetugas').value, kondisiAwal: document.getElementById('kj-kondisiAwal').value,
+    kronologi: kjKumpulkanKronologi(),
+    tindakanKeselamatan: kjNilaiFinal('kj-tindakanKeselamatan'), tindakanPengamanan: kjNilaiFinal('kj-tindakanPengamanan'),
+    pihakDihubungi: {
+      nama: document.getElementById('kj-pihakNama').value, waktu: document.getElementById('kj-pihakWaktu').value,
+      respons: document.getElementById('kj-pihakRespons').value,
+    },
+    korban: document.getElementById('kj-korban').value, bahayaSerahTerima: document.getElementById('kj-bahayaSerahTerima').value,
+    pihakTerlibat: kjKumpulkanDyn('pihak'), barangAset: kjKumpulkanDyn('aset'), buktiLampiran: kjKumpulkanDyn('bukti'),
+    dokumentasiFiles: kejadianState.dokumentasi,
+    pernyataan: true,
+    namaPelaksanaSerah: document.getElementById('kj-namaPelaksanaSerah').value, waktuSerah: document.getElementById('kj-waktuSerah').value,
+    namaDanruAwal: document.getElementById('kj-namaDanruAwal').value,
+  });
+  setBusy(btn, false, '', 'Kirim Laporan Awal');
+  showToast(res.pesan, res.sukses);
+  if (res.sukses) setTimeout(() => showScreen('home'), 1200);
+});
+
+// PDF ringkas (bukan template Google Docs seperti versi lama) - teks label:value
+// per bagian, dipaginasi otomatis, mengikuti gaya gambarSlipGajiPdf di atas.
+function kjGambarPdf(l, tingkat) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const kiri = 14, kanan = 196, lebar = kanan - kiri;
+  const NAVY = [23, 56, 92], MUTED = [124, 135, 152], TEKS = [31, 41, 55], GARIS = [227, 231, 238];
+  let y = 16;
+  const cekPage = (tambahan) => { if (y + tambahan > 285) { doc.addPage(); y = 16; } };
+  const judul = (t) => {
+    cekPage(10);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.text(t, kiri, y); y += 2;
+    doc.setDrawColor(GARIS[0], GARIS[1], GARIS[2]); doc.line(kiri, y, kanan, y); y += 5;
+  };
+  const baris = (label, val) => {
+    const lines = doc.splitTextToSize(String(val == null || val === '' ? '-' : val), lebar - 48);
+    cekPage(lines.length * 4.2 + 2);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    doc.text(label, kiri, y);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+    doc.text(lines, kiri + 48, y);
+    y += Math.max(5, lines.length * 4.2);
+  };
+  const daftarTeks = (rows) => {
+    if (!rows.length) { baris('(kosong)', ''); return; }
+    rows.forEach((teks, i) => {
+      const lines = doc.splitTextToSize((i + 1) + '. ' + teks, lebar);
+      cekPage(lines.length * 4.2 + 1);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(TEKS[0], TEKS[1], TEKS[2]);
+      doc.text(lines, kiri, y); y += lines.length * 4.2;
+    });
+    y += 2;
+  };
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.text('LAPORAN KEJADIAN', kiri, y); y += 5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+  doc.text('Nomor: ' + (l.nomorKejadian || '-') + '   |   Tingkat cetak: ' + tingkat, kiri, y); y += 8;
+
+  judul('A. IDENTITAS DAN KLASIFIKASI AWAL');
+  baris('Lokasi/Site', l.lokasi); baris('Unit/Area', l.unit);
+  baris('Jenis Laporan', l.jenisLaporan); baris('Level', l.levelAwal);
+  baris('Waktu Terjadi', l.waktuTerjadi); baris('Waktu Diketahui', l.waktuDiketahui);
+  baris('Nama Pelapor', l.namaPelapor); baris('Telp Pelapor', l.telpPelapor); baris('Asal Pelapor', l.asalPelapor);
+  baris('Petugas Penerima', l.namaPetugas); baris('No. ID Petugas', l.idPetugas);
+  judul('B. KONDISI SAAT PERTAMA DIKETAHUI'); baris('Kondisi Awal', l.kondisiAwal);
+  judul('C. KRONOLOGI'); daftarTeks((l.kronologi || []).map(k => '[' + (k.waktu || '-') + '] ' + (k.uraian || '-')));
+  judul('D. TINDAKAN AWAL');
+  baris('Tindakan Keselamatan', l.tindakanKeselamatan); baris('Tindakan Pengamanan', l.tindakanPengamanan);
+  const pd = l.pihakDihubungi || {};
+  baris('Pihak Dihubungi', (pd.nama || '-') + ' | Waktu: ' + (pd.waktu || '-') + ' | Respons: ' + (pd.respons || '-'));
+  baris('Korban/Luka', l.korban); baris('Bahaya Saat Serah-Terima', l.bahayaSerahTerima);
+  judul('E. PIHAK TERLIBAT & BARANG/ASET');
+  daftarTeks((l.pihakTerlibat || []).map(p => (p.nama || '-') + ' | ' + (p.status || '-') + ' | ' + (p.kontak || '-') + ' | ' + (p.ket || '-')));
+  daftarTeks((l.barangAset || []).map(a => (a.nama || '-') + ' | ' + (a.id || '-') + ' | ' + (a.kondisi || '-') + ' | ' + (a.nilai || '-')));
+  judul('F. BUKTI/LAMPIRAN AWAL');
+  daftarTeks((l.buktiLampiran || []).map(b => (b.jenis || '-') + ' | ' + (b.sumber || '-') + ' | ' + (b.kepada || '-') + ' | ' + (b.waktu || '-')));
+  judul('G. PERNYATAAN & SERAH-TERIMA PELAKSANA');
+  baris('Dokumentasi Foto', (l.dokumentasi || []).length + ' foto terlampir (lihat admin untuk tautan foto)');
+  baris('Pembuat Laporan', l.namaPelaksanaSerah); baris('Waktu Serah', l.waktuSerah); baris('Danru Penerima', l.namaDanruAwal);
+
+  if (tingkat === 'A-I' || tingkat === 'A-K') {
+    judul('H. VERIFIKASI DAN TINDAKAN DANRU');
+    baris('Waktu Terima Danru', l.waktuTerimaDanru); baris('Waktu Tiba Danru', l.waktuTibaDanru);
+    baris('Klasifikasi Danru', l.klasifikasiDanru); baris('Perubahan Level', l.perubahanLevel);
+    baris('Status Lokasi', l.statusLokasi); baris('Personel Tambahan', l.personelTambahan);
+    baris('Hasil Verifikasi', l.hasilVerifikasi);
+    daftarTeks((l.tindakanDanru || []).map(t => '[' + (t.waktu || '-') + '] ' + (t.isi || '-')));
+    judul('I. ESKALASI DAN SERAH-TERIMA DANRU');
+    baris('Koordinator Eskalasi', (l.namaKoordEskalasi || '-') + ' / ' + (l.waktuKoordEskalasi || '-') + ' / ' + (l.arahanKoordEskalasi || '-'));
+    baris('PIC Eskalasi', (l.namaPicEskalasi || '-') + ' / ' + (l.waktuPicEskalasi || '-') + ' / ' + (l.arahanPicEskalasi || '-'));
+    baris('Eksternal Eskalasi', l.eksternalEskalasi); baris('No. Laporan Eksternal', l.noLaporanEksternal);
+    baris('Status Bukti', l.statusBukti); baris('Waktu Serah ke Koordinator', l.waktuSerahDanru);
+  }
+  if (tingkat === 'A-K') {
+    judul('J. TELAAH DAN KEPUTUSAN KOORDINATOR');
+    baris('Level Final', l.levelFinal); baris('Investigasi', l.investigasi); baris('Rekonsiliasi', l.rekonsiliasi);
+    baris('Wawancara', l.wawancara); baris('Pelaporan Eksternal', l.pelaporanEks); baris('Pengamanan Lanjutan', l.pengamananLanjut);
+    baris('LHII', l.lhii); baris('Catatan Koordinator', l.catatanKoord);
+    judul('K. DISTRIBUSI DAN STATUS');
+    baris('Distribusi', l.distribusiLaporan); baris('Status Akhir', l.statusAkhirLaporan);
+    baris('TTD Koordinator', l.namaTtdKoord); baris('TTD PIC', l.namaTtdPic); baris('TTD Lain', l.namaTtdLain);
+  }
+  doc.save('Laporan_' + String(l.nomorKejadian || 'kejadian').replace(/[^a-zA-Z0-9]+/g, '_') + '_' + tingkat + '.pdf');
+}
 
 // STARTUP AWAL + CEK SESI
 (async () => {
