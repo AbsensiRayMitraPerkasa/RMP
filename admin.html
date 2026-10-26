@@ -148,6 +148,8 @@
   .kpi-badge{display:inline-block; padding:3px 9px; border-radius:99px; font-weight:700; font-size:12.5px;}
   .kpi-badge.ok{background:var(--green-bg); color:var(--green-text);}
   .kpi-badge.bad{background:var(--red-bg); color:var(--red-text);}
+  .nama-nonaktif{color:var(--red-text); font-weight:600; white-space:nowrap;}
+  tr.baris-nonaktif{background:var(--red-bg);}
   td.num,th.num{font-family:var(--f-mono); text-align:right;}
   .table-scroll{overflow-x:auto;}
 
@@ -1390,7 +1392,7 @@ async function muatRiwayatPatroliDetail() {
   tbody.innerHTML = daftar.length ? daftar.map(r =>
     '<tr>' +
       '<td class="mono">' + r.tanggal + '</td>' +
-      '<td>' + r.nama + '</td>' +
+      '<td>' + namaStatusHtml(r.nama, r.status) + '</td>' +
       '<td>' + r.namaPos + '</td>' +
       '<td class="mono">' + r.waktu + '</td>' +
       '<td class="mono">' + (r.akurasi != null ? ('±' + r.akurasi + ' m') : '-') + '</td>' +
@@ -1408,7 +1410,7 @@ async function muatRiwayatAbsensiDetail() {
   tbody.innerHTML = daftar.length ? daftar.map(r =>
     '<tr>' +
       '<td class="mono">' + r.tanggal + '</td>' +
-      '<td>' + r.nama + '</td>' +
+      '<td>' + namaStatusHtml(r.nama, r.status) + '</td>' +
       '<td class="muted">' + r.bagianKerja + '</td>' +
       '<td class="mono">' + (r.jamMasuk || '-') + '</td>' +
       '<td>' + (r.menitTelat === null ? '-' : (r.menitTelat === 0 ? '<span class="muted">Tepat waktu</span>' : '<b style="color:var(--red);">' + r.menitTelat + ' menit</b>')) + '</td>' +
@@ -1425,6 +1427,23 @@ async function muatRiwayatAbsensiDetail() {
 
 function statTile(num, label) {
   return '<div class="stat-tile"><div class="num">' + num + '</div><div class="lb">' + label + '</div></div>';
+}
+
+// Dipakai di semua tabel yang menampilkan nama karyawan (Kelola Data, Dashboard
+// Absensi/Patroli/Cleaning, Penilaian & Evaluasi, Riwayat Detail) supaya
+// karyawan yang sudah dinonaktifkan (misal sudah keluar kerja) langsung terlihat
+// beda tanpa harus buka tab Kelola Data - teks merah + ikon 🚫, histori lamanya
+// tetap tampil apa adanya, cuma ditandai.
+function namaStatusHtml(nama, status) {
+  return status === 'nonaktif'
+    ? '<span class="nama-nonaktif" title="Karyawan nonaktif">🚫 ' + nama + '</span>'
+    : nama;
+}
+
+async function ubahStatusKaryawan(id, statusBaru) {
+  const res = await api('ubahStatusKaryawan', { password: adminPassword, id, status: statusBaru });
+  showToast(res.pesan, res.sukses);
+  if (res.sukses) muatKelola('karyawan');
 }
 
 async function muatDashboardAbsensi() {
@@ -1452,7 +1471,7 @@ async function muatDashboardAbsensi() {
   ).join('');
 
   document.getElementById('absensi-table').innerHTML = kpi.perKaryawan.map(k =>
-    '<tr><td>'+k.nama+'</td><td class="muted">'+k.bagianKerja+'</td>' +
+    '<tr><td>'+namaStatusHtml(k.nama, k.status)+'</td><td class="muted">'+k.bagianKerja+'</td>' +
     '<td class="num">'+k.hadir+'</td><td class="num">'+k.telat+'</td><td class="num">'+k.ijin+'</td>' +
     '<td class="num">'+k.persenKehadiran+'%</td></tr>'
   ).join('') || '<tr><td colspan="6" class="muted">Tidak ada data.</td></tr>';
@@ -1466,7 +1485,7 @@ async function muatDashboardOperasional(action, statsId, tableId) {
     statTile(kpi.totalStaf, 'Total Staf') +
     statTile(kpi.hariKerja, 'Hari Kerja Berjalan');
   document.getElementById(tableId).innerHTML = kpi.perStaf.map(s =>
-    '<tr><td>'+s.nama+'</td><td class="num">'+s.jumlahLapor+'</td><td class="num">'+s.rataRataPerHari+'</td><td class="mono">'+s.terakhirLapor+'</td></tr>'
+    '<tr><td>'+namaStatusHtml(s.nama, s.status)+'</td><td class="num">'+s.jumlahLapor+'</td><td class="num">'+s.rataRataPerHari+'</td><td class="mono">'+s.terakhirLapor+'</td></tr>'
   ).join('') || '<tr><td colspan="4" class="muted">Belum ada staf terdaftar untuk divisi ini.</td></tr>';
 }
 
@@ -1482,7 +1501,7 @@ async function muatPenilaian() {
 
   document.getElementById('penilaian-absensi-table').innerHTML = kpi.perStaf.length ? kpi.perStaf.map((s) =>
     '<tr>' +
-      '<td>' + s.nama + '</td>' +
+      '<td>' + namaStatusHtml(s.nama, s.status) + '</td>' +
       '<td class="num">' + kpiBadge(s.persenKehadiran + '%', s.persenKehadiran >= 95) + '</td>' +
       '<td class="num">' + kpiBadge(s.tepatWaktu + '%', s.tepatWaktu >= 95) + '</td>' +
       '<td class="num">' + kpiBadge(s.rataRataTelat + ' menit', s.rataRataTelat < 10) + '</td>' +
@@ -1498,7 +1517,7 @@ async function muatPenilaian() {
     const perStafPatroli = kpi.perStafPatroli || [];
     document.getElementById('penilaian-patroli-table').innerHTML = perStafPatroli.length ? perStafPatroli.map((s) =>
       '<tr>' +
-        '<td>' + s.nama + '</td>' +
+        '<td>' + namaStatusHtml(s.nama, s.status) + '</td>' +
         '<td class="num">' + kpiBadge(s.checkpointDiscan + '/' + s.totalCheckpoint + ' (' + s.ketepatanRute + '%)', s.ketepatanRute === 100) + '</td>' +
         '<td class="num">' + (s.rataRataInterval != null ? kpiBadge(s.rataRataInterval + ' menit', s.rataRataInterval <= 120) : '<span class="muted">-</span>') + '</td>' +
         '<td class="num">' + kpiBadge(s.kelengkapanDokumentasi + '%', s.kelengkapanDokumentasi === 100) + '</td>' +
@@ -1761,23 +1780,33 @@ function renderTabelKelola(key, box, cfg) {
       '<div class="section-title">Daftar ' + cfg.title + '</div>' +
       (cfg.qr ? '<button class="btn btn-outline" id="btn-download-semua-qr-' + key + '" style="width:auto; margin-bottom:12px;" onclick="downloadSemuaQr(\'' + key + '\')">⬇️ Download Semua QR (ZIP)</button>' : '') +
       '<div class="table-scroll"><table><thead><tr>' +
-        cfg.fields.map(f => '<th>' + f.label + '</th>').join('') + '<th></th>' +
+        cfg.fields.map(f => '<th>' + f.label + '</th>').join('') +
+        (key === 'karyawan' ? '<th>Status</th>' : '') + '<th></th>' +
       '</tr></thead><tbody>' +
         (daftar.length
           ? daftar.map(d =>
-              '<tr>' + cfg.fields.map(f => {
+              '<tr' + (key === 'karyawan' && d.status === 'nonaktif' ? ' class="baris-nonaktif"' : '') + '>' + cfg.fields.map(f => {
                 if (f.type === 'foto') {
                   return '<td>' + (d[f.key] ? '<img class="foto-thumb" src="' + d[f.key] + '" alt="Foto ' + (d.nama || '') + '" loading="lazy">' : '-') + '</td>';
                 }
+                if (key === 'karyawan' && f.key === 'nama') {
+                  return '<td>' + namaStatusHtml(d.nama, d.status) + '</td>';
+                }
                 return '<td>' + (d[f.key] !== undefined && d[f.key] !== null ? d[f.key] : '') + '</td>';
               }).join('') +
+              (key === 'karyawan'
+                ? '<td>' + (d.status === 'nonaktif' ? '<span class="kpi-badge bad">🚫 Nonaktif</span>' : '<span class="kpi-badge ok">Aktif</span>') + '</td>'
+                : '') +
               '<td class="action-cell">' +
                 '<button class="btn btn-outline btn-sm" onclick="isiFormEdit(\'' + key + '\', \'' + d.id + '\')">Edit</button>' +
                 (cfg.qr ? '<button class="btn btn-outline btn-sm" onclick="tampilkanQr(\'' + String(d[cfg.qrField] || '').replace(/'/g,"\\'") + '\', \'' + String(d[cfg.qrJudulField] || '').replace(/'/g,"\\'") + '\', \'' + (cfg.qrBadge || '') + '\')">QR</button>' : '') +
+                (key === 'karyawan'
+                  ? '<button class="btn btn-outline btn-sm" onclick="ubahStatusKaryawan(\'' + d.id + '\', \'' + (d.status === 'nonaktif' ? 'aktif' : 'nonaktif') + '\')">' + (d.status === 'nonaktif' ? 'Aktifkan' : 'Nonaktifkan') + '</button>'
+                  : '') +
                 '<button class="btn btn-danger btn-sm" onclick="hapusKelola(\'' + key + '\', \'' + d.id + '\')">Hapus</button>' +
               '</td></tr>'
             ).join('')
-          : '<tr><td colspan="' + (cfg.fields.length + 1) + '" class="muted">Belum ada data.</td></tr>') +
+          : '<tr><td colspan="' + (cfg.fields.length + 1 + (key === 'karyawan' ? 1 : 0)) + '" class="muted">Belum ada data.</td></tr>') +
       '</tbody></table></div>' +
     '</div>';
   tabelBox.innerHTML = html;
@@ -2101,7 +2130,7 @@ function initSlipGaji() {
   const selKaryawan = document.getElementById('slip-nama-karyawan');
   const nilaiTerpilih = selKaryawan.value;
   selKaryawan.innerHTML = '<option value="">Pilih karyawan...</option>' +
-    (kelolaCache.karyawan || []).map(k => '<option value="' + escAttrSlip(k.id) + '">' + escHtmlSlip(k.nama) + '</option>').join('');
+    (kelolaCache.karyawan || []).map(k => '<option value="' + escAttrSlip(k.id) + '">' + (k.status === 'nonaktif' ? '🚫 ' : '') + escHtmlSlip(k.nama) + '</option>').join('');
   if (nilaiTerpilih) selKaryawan.value = nilaiTerpilih;
   if (!slipGajiTerinit) {
     document.getElementById('slip-logo-input').addEventListener('change', async (e) => {
@@ -2619,7 +2648,7 @@ document.getElementById('btn-unduh-rekap').addEventListener('click', async () =>
   if (!daftar.length) return showToast('Tidak ada data absensi untuk lokasi & periode ini.', false);
 
   const rows = daftar.map(r => ({
-    Tanggal: r.tanggal, Nama: r.nama, 'Bagian Kerja': r.bagianKerja,
+    Tanggal: r.tanggal, Nama: r.nama, 'Status Karyawan': r.status === 'nonaktif' ? 'Nonaktif' : 'Aktif', 'Bagian Kerja': r.bagianKerja,
     'Jam Masuk': r.jamMasuk || '', 'Telat (menit)': r.menitTelat != null ? r.menitTelat : '',
     'Lokasi Masuk': r.namaLokasiMasuk, 'Jarak Masuk (m)': r.jarakMasuk != null ? r.jarakMasuk : '',
     'Akurasi GPS Masuk (m)': r.akurasiMasuk != null ? r.akurasiMasuk : '', 'Foto Masuk': r.fotoMasukUrl || '',
