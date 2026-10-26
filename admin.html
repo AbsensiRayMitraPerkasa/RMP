@@ -206,7 +206,9 @@
    
   .kd-form-row{display:flex; gap:8px; flex-wrap:wrap;}
   .kd-form-row .btn{flex:none;}
-  .action-cell{display:flex; gap:6px; flex-wrap:wrap;}
+  .action-cell{display:flex; gap:6px; flex-wrap:nowrap;}
+  .action-cell .btn{width:auto;}
+  tr.group-sep td{background:var(--navy-soft); color:var(--navy); font-weight:700; padding:8px 12px; text-align:left; border-top:2px solid var(--navy); border-bottom:2px solid var(--navy);}
 
    
   .qr-modal{
@@ -1389,7 +1391,7 @@ async function muatRiwayatPatroliDetail() {
   const res = await api('daftarPatroliDetailAdmin', { password: adminPassword, bulan: filterBulan, tahun: filterTahun });
   if (!res.sukses) { tbody.innerHTML = '<tr><td colspan="7" class="muted">' + res.pesan + '</td></tr>'; return; }
   const daftar = res.daftar || [];
-  tbody.innerHTML = daftar.length ? daftar.map(r =>
+  const renderBaris = r =>
     '<tr>' +
       '<td class="mono">' + r.tanggal + '</td>' +
       '<td>' + namaStatusHtml(r.nama, r.status) + '</td>' +
@@ -1398,8 +1400,8 @@ async function muatRiwayatPatroliDetail() {
       '<td class="mono">' + (r.akurasi != null ? ('±' + r.akurasi + ' m') : '-') + '</td>' +
       '<td>' + (r.catatan || '-') + '</td>' +
       '<td>' + (r.fotoUrl ? '<a href="' + r.fotoUrl + '" target="_blank" rel="noopener"><img class="foto-thumb" src="' + r.fotoUrl + '" alt="Foto patroli ' + r.nama + '" loading="lazy"></a>' : '-') + '</td>' +
-    '</tr>'
-  ).join('') : '<tr><td colspan="7" class="muted">Belum ada data patroli pada periode ini.</td></tr>';
+    '</tr>';
+  tbody.innerHTML = daftar.length ? gabungDenganPemisah(daftar, 7, renderBaris, 'Karyawan Nonaktif') : '<tr><td colspan="7" class="muted">Belum ada data patroli pada periode ini.</td></tr>';
 }
 
 async function muatRiwayatAbsensiDetail() {
@@ -1407,7 +1409,7 @@ async function muatRiwayatAbsensiDetail() {
   const res = await api('daftarAbsensiDetailAdmin', { password: adminPassword, bulan: filterBulan, tahun: filterTahun });
   if (!res.sukses) { tbody.innerHTML = '<tr><td colspan="12" class="muted">' + res.pesan + '</td></tr>'; return; }
   const daftar = res.daftar || [];
-  tbody.innerHTML = daftar.length ? daftar.map(r =>
+  const renderBaris = r =>
     '<tr>' +
       '<td class="mono">' + r.tanggal + '</td>' +
       '<td>' + namaStatusHtml(r.nama, r.status) + '</td>' +
@@ -1421,8 +1423,8 @@ async function muatRiwayatAbsensiDetail() {
       '<td>' + (r.jarakKeluar !== null ? (r.jarakKeluar + ' m dari ' + r.namaLokasiKeluar) : '-') + '</td>' +
       '<td class="mono">' + (r.akurasiKeluar != null ? ('±' + r.akurasiKeluar + ' m') : '-') + '</td>' +
       '<td>' + (r.fotoKeluarUrl ? '<a href="' + r.fotoKeluarUrl + '" target="_blank" rel="noopener"><img class="foto-thumb" src="' + r.fotoKeluarUrl + '" alt="Foto keluar ' + r.nama + '" loading="lazy"></a>' : '-') + '</td>' +
-    '</tr>'
-  ).join('') : '<tr><td colspan="12" class="muted">Belum ada data absensi pada periode ini.</td></tr>';
+    '</tr>';
+  tbody.innerHTML = daftar.length ? gabungDenganPemisah(daftar, 12, renderBaris, 'Karyawan Nonaktif') : '<tr><td colspan="12" class="muted">Belum ada data absensi pada periode ini.</td></tr>';
 }
 
 function statTile(num, label) {
@@ -1440,6 +1442,22 @@ function namaStatusHtml(nama, status) {
     : nama;
 }
 
+// Semua tabel yang menampilkan daftar per-karyawan dikelompokkan jadi dua blok
+// terpisah (Aktif di atas, Nonaktif di bawah) dengan baris pemisah di antaranya,
+// bukan dicampur urut abjad/angka seperti biasa - supaya karyawan yang sudah
+// keluar kerja jelas terpisah di semua halaman (dashboard, penilaian, dst),
+// bukan cuma ditandai warna saja.
+function gabungDenganPemisah(daftar, colspan, renderBaris, labelNonaktif) {
+  const aktif = daftar.filter(d => d.status !== 'nonaktif');
+  const nonaktif = daftar.filter(d => d.status === 'nonaktif');
+  let html = aktif.map(renderBaris).join('');
+  if (nonaktif.length) {
+    html += '<tr class="group-sep"><td colspan="' + colspan + '">' + (labelNonaktif || 'Karyawan Nonaktif') + '</td></tr>';
+    html += nonaktif.map(renderBaris).join('');
+  }
+  return html;
+}
+
 async function ubahStatusKaryawan(id, statusBaru) {
   const res = await api('ubahStatusKaryawan', { password: adminPassword, id, status: statusBaru });
   showToast(res.pesan, res.sukses);
@@ -1452,7 +1470,8 @@ async function muatDashboardAbsensi() {
   const kpi = res.kpi;
   const r = kpi.ringkasan;
   document.getElementById('absensi-stats').innerHTML =
-    statTile(r.totalKaryawan, 'Total Karyawan') +
+    statTile(r.totalKaryawanAktif, 'Karyawan Aktif') +
+    statTile(r.totalKaryawanNonaktif, 'Karyawan Nonaktif') +
     statTile(r.totalHadir, 'Total Hadir') +
     statTile(r.totalTelat, 'Total Telat') +
     statTile(r.totalIjin, 'Ijin Disetujui') +
@@ -1470,11 +1489,13 @@ async function muatDashboardAbsensi() {
     '</div>'
   ).join('');
 
-  document.getElementById('absensi-table').innerHTML = kpi.perKaryawan.map(k =>
+  const renderBarisAbsensi = k =>
     '<tr><td>'+namaStatusHtml(k.nama, k.status)+'</td><td class="muted">'+k.bagianKerja+'</td>' +
     '<td class="num">'+k.hadir+'</td><td class="num">'+k.telat+'</td><td class="num">'+k.ijin+'</td>' +
-    '<td class="num">'+k.persenKehadiran+'%</td></tr>'
-  ).join('') || '<tr><td colspan="6" class="muted">Tidak ada data.</td></tr>';
+    '<td class="num">'+k.persenKehadiran+'%</td></tr>';
+  document.getElementById('absensi-table').innerHTML = kpi.perKaryawan.length
+    ? gabungDenganPemisah(kpi.perKaryawan, 6, renderBarisAbsensi, 'Karyawan Nonaktif')
+    : '<tr><td colspan="6" class="muted">Tidak ada data.</td></tr>';
 }
 
 async function muatDashboardOperasional(action, statsId, tableId) {
@@ -1482,11 +1503,14 @@ async function muatDashboardOperasional(action, statsId, tableId) {
   if (!res.sukses) return showToast(res.pesan, false);
   const kpi = res.kpi;
   document.getElementById(statsId).innerHTML =
-    statTile(kpi.totalStaf, 'Total Staf') +
+    statTile(kpi.totalStafAktif, 'Staf Aktif') +
+    statTile(kpi.totalStafNonaktif, 'Staf Nonaktif') +
     statTile(kpi.hariKerja, 'Hari Kerja Berjalan');
-  document.getElementById(tableId).innerHTML = kpi.perStaf.map(s =>
-    '<tr><td>'+namaStatusHtml(s.nama, s.status)+'</td><td class="num">'+s.jumlahLapor+'</td><td class="num">'+s.rataRataPerHari+'</td><td class="mono">'+s.terakhirLapor+'</td></tr>'
-  ).join('') || '<tr><td colspan="4" class="muted">Belum ada staf terdaftar untuk divisi ini.</td></tr>';
+  const renderBarisOperasional = s =>
+    '<tr><td>'+namaStatusHtml(s.nama, s.status)+'</td><td class="num">'+s.jumlahLapor+'</td><td class="num">'+s.rataRataPerHari+'</td><td class="mono">'+s.terakhirLapor+'</td></tr>';
+  document.getElementById(tableId).innerHTML = kpi.perStaf.length
+    ? gabungDenganPemisah(kpi.perStaf, 4, renderBarisOperasional, 'Karyawan Nonaktif')
+    : '<tr><td colspan="4" class="muted">Belum ada staf terdaftar untuk divisi ini.</td></tr>';
 }
 
 function kpiBadge(text, tercapai) {
@@ -1499,7 +1523,7 @@ async function muatPenilaian() {
   if (!res.sukses) return showToast(res.pesan, false);
   const kpi = res.kpi;
 
-  document.getElementById('penilaian-absensi-table').innerHTML = kpi.perStaf.length ? kpi.perStaf.map((s) =>
+  const renderBarisPenilaianAbsensi = s =>
     '<tr>' +
       '<td>' + namaStatusHtml(s.nama, s.status) + '</td>' +
       '<td class="num">' + kpiBadge(s.persenKehadiran + '%', s.persenKehadiran >= 95) + '</td>' +
@@ -1508,21 +1532,25 @@ async function muatPenilaian() {
       '<td class="num">' + kpiBadge(s.mangkir + ' hari', s.mangkir === 0) + '</td>' +
       '<td class="num">' + kpiBadge(s.geofencing + '%', s.geofencing === 100) + '</td>' +
       '<td class="num">' + kpiBadge('Rp ' + s.totalPotongan.toLocaleString('id-ID'), s.totalPotongan === 0) + '</td>' +
-    '</tr>'
-  ).join('') : '<tr><td colspan="7" class="muted">Belum ada staf di bagian kerja ini.</td></tr>';
+    '</tr>';
+  document.getElementById('penilaian-absensi-table').innerHTML = kpi.perStaf.length
+    ? gabungDenganPemisah(kpi.perStaf, 7, renderBarisPenilaianAbsensi, 'Karyawan Nonaktif')
+    : '<tr><td colspan="7" class="muted">Belum ada staf di bagian kerja ini.</td></tr>';
 
   const panelPatroli = document.getElementById('penilaian-patroli-panel');
   if (bagian === 'Security') {
     panelPatroli.classList.remove('hidden');
     const perStafPatroli = kpi.perStafPatroli || [];
-    document.getElementById('penilaian-patroli-table').innerHTML = perStafPatroli.length ? perStafPatroli.map((s) =>
+    const renderBarisPenilaianPatroli = s =>
       '<tr>' +
         '<td>' + namaStatusHtml(s.nama, s.status) + '</td>' +
         '<td class="num">' + kpiBadge(s.checkpointDiscan + '/' + s.totalCheckpoint + ' (' + s.ketepatanRute + '%)', s.ketepatanRute === 100) + '</td>' +
         '<td class="num">' + (s.rataRataInterval != null ? kpiBadge(s.rataRataInterval + ' menit', s.rataRataInterval <= 120) : '<span class="muted">-</span>') + '</td>' +
         '<td class="num">' + kpiBadge(s.kelengkapanDokumentasi + '%', s.kelengkapanDokumentasi === 100) + '</td>' +
-      '</tr>'
-    ).join('') : '<tr><td colspan="4" class="muted">Belum ada laporan patroli pada periode ini.</td></tr>';
+      '</tr>';
+    document.getElementById('penilaian-patroli-table').innerHTML = perStafPatroli.length
+      ? gabungDenganPemisah(perStafPatroli, 4, renderBarisPenilaianPatroli, 'Karyawan Nonaktif')
+      : '<tr><td colspan="4" class="muted">Belum ada laporan patroli pada periode ini.</td></tr>';
   } else {
     panelPatroli.classList.add('hidden');
   }
@@ -1772,6 +1800,38 @@ function resizeImageFileToDataUrl(file, maxDim) {
   });
 }
 
+function renderBarisSatuKelola(key, cfg, d) {
+  return '<tr' + (key === 'karyawan' && d.status === 'nonaktif' ? ' class="baris-nonaktif"' : '') + '>' + cfg.fields.map(f => {
+      if (f.type === 'foto') {
+        return '<td>' + (d[f.key] ? '<img class="foto-thumb" src="' + d[f.key] + '" alt="Foto ' + (d.nama || '') + '" loading="lazy">' : '-') + '</td>';
+      }
+      if (key === 'karyawan' && f.key === 'nama') {
+        return '<td>' + namaStatusHtml(d.nama, d.status) + '</td>';
+      }
+      return '<td>' + (d[f.key] !== undefined && d[f.key] !== null ? d[f.key] : '') + '</td>';
+    }).join('') +
+    (key === 'karyawan'
+      ? '<td>' + (d.status === 'nonaktif' ? '<span class="kpi-badge bad">🚫 Nonaktif</span>' : '<span class="kpi-badge ok">Aktif</span>') + '</td>'
+      : '') +
+    '<td class="action-cell">' +
+      '<button class="btn btn-outline btn-sm" onclick="isiFormEdit(\'' + key + '\', \'' + d.id + '\')">Edit</button>' +
+      (cfg.qr ? '<button class="btn btn-outline btn-sm" onclick="tampilkanQr(\'' + String(d[cfg.qrField] || '').replace(/'/g,"\\'") + '\', \'' + String(d[cfg.qrJudulField] || '').replace(/'/g,"\\'") + '\', \'' + (cfg.qrBadge || '') + '\')">QR</button>' : '') +
+      (key === 'karyawan'
+        ? '<button class="btn btn-outline btn-sm" onclick="ubahStatusKaryawan(\'' + d.id + '\', \'' + (d.status === 'nonaktif' ? 'aktif' : 'nonaktif') + '\')">' + (d.status === 'nonaktif' ? 'Aktifkan' : 'Nonaktifkan') + '</button>'
+        : '') +
+      '<button class="btn btn-danger btn-sm" onclick="hapusKelola(\'' + key + '\', \'' + d.id + '\')">Hapus</button>' +
+    '</td></tr>';
+}
+
+// Kelola Data > Karyawan dipisah dua blok (Aktif di atas, Nonaktif di bawah)
+// dengan baris pemisah - entitas lain (lokasi/titik patroli/tugas/jam kerja)
+// tidak punya kolom status, jadi tetap tampil urut biasa apa adanya.
+function renderBarisKelola(key, cfg, daftar) {
+  const renderSatu = d => renderBarisSatuKelola(key, cfg, d);
+  if (key !== 'karyawan') return daftar.map(renderSatu).join('');
+  return gabungDenganPemisah(daftar, cfg.fields.length + 2, renderSatu, 'Karyawan Nonaktif (Sudah Keluar Kerja)');
+}
+
 function renderTabelKelola(key, box, cfg) {
   const daftar = kelolaCache[key] || [];
   const tabelBox = document.getElementById('kd-' + key + '-tabel');
@@ -1783,30 +1843,7 @@ function renderTabelKelola(key, box, cfg) {
         cfg.fields.map(f => '<th>' + f.label + '</th>').join('') +
         (key === 'karyawan' ? '<th>Status</th>' : '') + '<th></th>' +
       '</tr></thead><tbody>' +
-        (daftar.length
-          ? daftar.map(d =>
-              '<tr' + (key === 'karyawan' && d.status === 'nonaktif' ? ' class="baris-nonaktif"' : '') + '>' + cfg.fields.map(f => {
-                if (f.type === 'foto') {
-                  return '<td>' + (d[f.key] ? '<img class="foto-thumb" src="' + d[f.key] + '" alt="Foto ' + (d.nama || '') + '" loading="lazy">' : '-') + '</td>';
-                }
-                if (key === 'karyawan' && f.key === 'nama') {
-                  return '<td>' + namaStatusHtml(d.nama, d.status) + '</td>';
-                }
-                return '<td>' + (d[f.key] !== undefined && d[f.key] !== null ? d[f.key] : '') + '</td>';
-              }).join('') +
-              (key === 'karyawan'
-                ? '<td>' + (d.status === 'nonaktif' ? '<span class="kpi-badge bad">🚫 Nonaktif</span>' : '<span class="kpi-badge ok">Aktif</span>') + '</td>'
-                : '') +
-              '<td class="action-cell">' +
-                '<button class="btn btn-outline btn-sm" onclick="isiFormEdit(\'' + key + '\', \'' + d.id + '\')">Edit</button>' +
-                (cfg.qr ? '<button class="btn btn-outline btn-sm" onclick="tampilkanQr(\'' + String(d[cfg.qrField] || '').replace(/'/g,"\\'") + '\', \'' + String(d[cfg.qrJudulField] || '').replace(/'/g,"\\'") + '\', \'' + (cfg.qrBadge || '') + '\')">QR</button>' : '') +
-                (key === 'karyawan'
-                  ? '<button class="btn btn-outline btn-sm" onclick="ubahStatusKaryawan(\'' + d.id + '\', \'' + (d.status === 'nonaktif' ? 'aktif' : 'nonaktif') + '\')">' + (d.status === 'nonaktif' ? 'Aktifkan' : 'Nonaktifkan') + '</button>'
-                  : '') +
-                '<button class="btn btn-danger btn-sm" onclick="hapusKelola(\'' + key + '\', \'' + d.id + '\')">Hapus</button>' +
-              '</td></tr>'
-            ).join('')
-          : '<tr><td colspan="' + (cfg.fields.length + 1 + (key === 'karyawan' ? 1 : 0)) + '" class="muted">Belum ada data.</td></tr>') +
+        (daftar.length ? renderBarisKelola(key, cfg, daftar) : '<tr><td colspan="' + (cfg.fields.length + 1 + (key === 'karyawan' ? 1 : 0)) + '" class="muted">Belum ada data.</td></tr>') +
       '</tbody></table></div>' +
     '</div>';
   tabelBox.innerHTML = html;
@@ -2129,8 +2166,13 @@ function initSlipGaji() {
   // (subtab Karyawan selalu dibuka duluan saat tab Kelola Data pertama aktif).
   const selKaryawan = document.getElementById('slip-nama-karyawan');
   const nilaiTerpilih = selKaryawan.value;
+  const optKaryawan = k => '<option value="' + escAttrSlip(k.id) + '">' + (k.status === 'nonaktif' ? '🚫 ' : '') + escHtmlSlip(k.nama) + '</option>';
+  const daftarSlipKaryawan = kelolaCache.karyawan || [];
+  const slipAktif = daftarSlipKaryawan.filter(k => k.status !== 'nonaktif');
+  const slipNonaktif = daftarSlipKaryawan.filter(k => k.status === 'nonaktif');
   selKaryawan.innerHTML = '<option value="">Pilih karyawan...</option>' +
-    (kelolaCache.karyawan || []).map(k => '<option value="' + escAttrSlip(k.id) + '">' + (k.status === 'nonaktif' ? '🚫 ' : '') + escHtmlSlip(k.nama) + '</option>').join('');
+    (slipAktif.length ? '<optgroup label="Karyawan Aktif">' + slipAktif.map(optKaryawan).join('') + '</optgroup>' : '') +
+    (slipNonaktif.length ? '<optgroup label="Karyawan Nonaktif (Sudah Keluar Kerja)">' + slipNonaktif.map(optKaryawan).join('') + '</optgroup>' : '');
   if (nilaiTerpilih) selKaryawan.value = nilaiTerpilih;
   if (!slipGajiTerinit) {
     document.getElementById('slip-logo-input').addEventListener('change', async (e) => {
