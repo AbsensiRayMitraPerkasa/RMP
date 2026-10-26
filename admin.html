@@ -424,7 +424,7 @@
     <section class="tabpanel" id="tab-penilaian">
       <div class="panel">
         <div class="section-title">Penilaian &amp; Evaluasi Kinerja</div>
-        <p class="muted" style="font-size:13px; margin-top:-6px;">Pilih bagian kerja untuk melihat KPI staf pada bulan &amp; tahun yang difilter di atas.</p>
+        <p class="muted" style="font-size:13px; margin-top:-6px;">Pilih bagian kerja untuk melihat KPI staf pada bulan &amp; tahun yang difilter di atas, atau isi filter tanggal di bawah untuk rentang kustom.</p>
         <label>Bagian Kerja</label>
         <select id="penilaian-bagian" style="max-width:260px;">
           <option value="Security">Security</option>
@@ -436,6 +436,20 @@
           <option value="Tenaga Operator">Tenaga Operator</option>
           <option value="Lainnya">Lainnya</option>
         </select>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-top:14px;">
+          <div>
+            <label>Dari Tanggal</label>
+            <input type="date" id="penilaian-tgl-awal" style="width:auto;">
+          </div>
+          <div>
+            <label>Sampai Tanggal</label>
+            <input type="date" id="penilaian-tgl-akhir" style="width:auto;">
+          </div>
+          <button type="button" class="btn btn-navy" style="width:auto;" onclick="muatPenilaian()">Terapkan Filter Tanggal</button>
+          <button type="button" class="btn btn-outline" style="width:auto;" onclick="document.getElementById('penilaian-tgl-awal').value=''; document.getElementById('penilaian-tgl-akhir').value=''; muatPenilaian();">Reset ke Bulan/Tahun</button>
+        </div>
+        <p class="muted" style="font-size:12px; margin-top:8px; margin-bottom:0;">Isi kedua tanggal untuk cek rentang kustom (KPI Absensi &amp; Patroli, termasuk persentase cakupan rute patroli). Kosongkan keduanya untuk kembali memakai filter Bulan/Tahun di atas.</p>
+        <p class="muted" id="penilaian-rentang-aktif" style="font-size:12px; margin-top:4px; margin-bottom:0; font-weight:600;"></p>
       </div>
 
       <div class="panel">
@@ -458,6 +472,7 @@
 
       <div class="panel" id="penilaian-patroli-panel">
         <div class="section-title">KPI Patroli (khusus Security)</div>
+        <div id="penilaian-cakupan-patroli"></div>
         <div class="table-scroll">
           <table>
             <thead><tr>
@@ -1517,9 +1532,28 @@ function kpiBadge(text, tercapai) {
   return '<span class="kpi-badge ' + (tercapai ? 'ok' : 'bad') + '">' + text + '</span>';
 }
 
+function formatTglID(iso) {
+  if (!iso) return '-';
+  const [y, m, d] = iso.split('-');
+  return d + '/' + m + '/' + y;
+}
+
 async function muatPenilaian() {
   const bagian = document.getElementById('penilaian-bagian').value;
-  const res = await api('ambilPenilaianKPI', { password: adminPassword, bulan: filterBulan, tahun: filterTahun, bagianKerja: bagian });
+  const tglAwal = document.getElementById('penilaian-tgl-awal').value;
+  const tglAkhir = document.getElementById('penilaian-tgl-akhir').value;
+  const pakaiRentangKustom = !!(tglAwal && tglAkhir && tglAwal <= tglAkhir);
+  const params = { password: adminPassword, bulan: filterBulan, tahun: filterTahun, bagianKerja: bagian };
+  if (pakaiRentangKustom) { params.tanggalAwal = tglAwal; params.tanggalAkhir = tglAkhir; }
+  const info = document.getElementById('penilaian-rentang-aktif');
+  if (tglAwal && tglAkhir && !pakaiRentangKustom) {
+    info.textContent = '⚠️ Tanggal awal harus sebelum/sama dengan tanggal akhir. Masih memakai filter Bulan/Tahun.';
+  } else {
+    info.textContent = pakaiRentangKustom
+      ? 'Menampilkan rentang kustom: ' + formatTglID(tglAwal) + ' – ' + formatTglID(tglAkhir)
+      : '';
+  }
+  const res = await api('ambilPenilaianKPI', params);
   if (!res.sukses) return showToast(res.pesan, false);
   const kpi = res.kpi;
 
@@ -1540,6 +1574,13 @@ async function muatPenilaian() {
   const panelPatroli = document.getElementById('penilaian-patroli-panel');
   if (bagian === 'Security') {
     panelPatroli.classList.remove('hidden');
+    const c = kpi.cakupanPatroli;
+    document.getElementById('penilaian-cakupan-patroli').innerHTML = c
+      ? '<div class="stat-tile" style="margin-bottom:14px; border-left-color:' + (c.persentase >= 100 ? 'var(--green)' : 'var(--navy)') + ';">' +
+          '<div class="num">' + c.persentase + '%</div>' +
+          '<div class="lb">Cakupan Rute Patroli (gabungan semua petugas) — ' + c.totalCheckpoint + ' titik &times; ' + c.totalHariKalender + ' hari = target ' + (c.totalCheckpoint * c.totalHariKalender) + ', tercapai ' + c.sumCakupanHarian + '</div>' +
+        '</div>'
+      : '';
     const perStafPatroli = kpi.perStafPatroli || [];
     const renderBarisPenilaianPatroli = s =>
       '<tr>' +
