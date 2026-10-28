@@ -306,6 +306,15 @@
   .riwayat-row .tgl{font-weight:600;}
   .riwayat-row .jam{font-family:var(--f-mono); color:var(--muted);}
 
+  .antrian-box{background:var(--tan); border-radius:var(--radius-sm); padding:10px 12px; margin-bottom:12px;}
+  .antrian-judul{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px;}
+  .antrian-judul b{font-size:12.5px; color:var(--tan-text);}
+  .antrian-row{display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid rgba(0,0,0,.08); font-size:12px;}
+  .antrian-row:last-child{border-bottom:none;}
+  .antrian-row .status{color:var(--tan-text); font-family:var(--f-mono); font-size:11px;}
+  .btn-upload-ulang{border:none; background:var(--navy); color:#fff; border-radius:8px; padding:6px 10px; font-size:11.5px; font-weight:600;}
+  .btn-upload-ulang:disabled{opacity:.6;}
+
   .empty-state{text-align:center; padding:20px 10px; color:var(--muted); font-size:13.5px;}
   .empty-state .big{font-size:24px; margin-bottom:6px;}
 
@@ -581,6 +590,7 @@
 <div id="modal-riwayat" class="modal-overlay hidden">
   <div class="modal-sheet">
     <h3>🕓 Riwayat Absensi — 7 Hari Terakhir</h3>
+    <div id="home-riwayat-pending"></div>
     <div id="home-riwayat"><div class="empty-state">Memuat...</div></div>
     <button class="btn btn-outline" id="btn-tutup-riwayat">Tutup</button>
   </div>
@@ -1079,9 +1089,106 @@ async function api(action, payload) {
     });
     return await res.json();
   } catch (e) {
-    return { sukses: false, pesan: 'Gagal terhubung ke server. Cek koneksi internet Anda.' };
+    return { sukses: false, pesan: 'Gagal terhubung ke server. Cek koneksi internet Anda.', offline: true };
   }
 }
+
+// ANTRIAN OFFLINE (absen & patroli) — saat fetch di atas gagal karena sinyal/
+// koneksi (bukan ditolak server), payload disimpan di IndexedDB device ini
+// lalu dicoba kirim ulang otomatis begitu online lagi/app dibuka lagi, dan
+// bisa juga dipicu manual lewat tombol "Upload Ulang" di modal Riwayat
+// Absensi. IndexedDB dipakai (bukan localStorage) karena payload menyertakan
+// foto base64 yang bisa beberapa MB, di luar batas aman localStorage.
+const ANTRIAN_DB_NAME = 'ray_antrian_offline', ANTRIAN_STORE = 'antrian';
+function bukaDbAntrian() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(ANTRIAN_DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(ANTRIAN_STORE, { keyPath: 'id', autoIncrement: true });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function tambahAntrian(entry) {
+  const db = await bukaDbAntrian();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(ANTRIAN_STORE, 'readwrite');
+    tx.objectStore(ANTRIAN_STORE).add(entry);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function ambilSemuaAntrian() {
+  const db = await bukaDbAntrian();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(ANTRIAN_STORE, 'readonly');
+    const req = tx.objectStore(ANTRIAN_STORE).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function hapusAntrian(id) {
+  const db = await bukaDbAntrian();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(ANTRIAN_STORE, 'readwrite');
+    tx.objectStore(ANTRIAN_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// Overlay status shift secara optimistis selama masih ada antrian simpanAbsen
+// yang belum terkirim, supaya tombol Masuk/Pulang tidak membuka celah dobel
+// kirim sebelum antrian tadi benar-benar tersinkron ke server (lihat
+// cekTombolPresensi/muatHome yang memakai statusEfektif() ini).
+let antrianAbsenTerakhirJenis = null;
+function statusEfektif() {
+  const st = Object.assign({}, sesi.status || {});
+  if (antrianAbsenTerakhirJenis === 'CLOCK IN') st.shiftAktif = true;
+  else if (antrianAbsenTerakhirJenis === 'CLOCK OUT') st.shiftAktif = false;
+  return st;
+}
+async function segarkanOverlayAntrianAbsen() {
+  const semua = await ambilSemuaAntrian();
+  const absenSaja = semua.filter(e => e.action === 'simpanAbsen');
+  antrianAbsenTerakhirJenis = absenSaja.length ? absenSaja[absenSaja.length - 1].payload.jenisAbsen : null;
+}
+
+async function prosesAntrianOffline() {
+  const semua = await ambilSemuaAntrian();
+  if (!semua.length) return;
+  if (!sesi.nama) return; // belum login, antrian dicoba lagi setelah login/online berikutnya
+  for (const entry of semua) {
+    const res = await api(entry.action, entry.payload);
+    if (res.offline) break; // masih belum ada koneksi, sisanya dicoba lagi nanti
+    await hapusAntrian(entry.id);
+    if (!res.sukses) kirimLogKeSistem('ERROR_UPLOAD_ULANG', entry.labelTampilan + ': ' + res.pesan);
+  }
+  await segarkanOverlayAntrianAbsen();
+  await refreshStatus();
+  muatHome();
+}
+window.addEventListener('online', () => { prosesAntrianOffline().catch(() => {}); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) prosesAntrianOffline().catch(() => {}); });
+
+async function renderAntrianPending() {
+  const box = document.getElementById('home-riwayat-pending');
+  if (!box) return;
+  const semua = await ambilSemuaAntrian();
+  if (!semua.length) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="antrian-box">' +
+    '<div class="antrian-judul"><b>⏳ Belum Terkirim (' + semua.length + ')</b>' +
+    '<button class="btn-upload-ulang" id="btn-upload-ulang-antrian">⟳ Upload Ulang</button></div>' +
+    semua.map(e => '<div class="antrian-row"><span>' + e.labelTampilan + '</span><span class="status">' + e.waktuTampilan + '</span></div>').join('') +
+    '</div>';
+  document.getElementById('btn-upload-ulang-antrian').addEventListener('click', async (ev) => {
+    const btn = ev.target;
+    setBusy(btn, true, 'Mengupload...', '⟳ Upload Ulang');
+    await prosesAntrianOffline();
+    await muatRiwayatInline();
+    showToast('Sinkronisasi antrian selesai.', true);
+  });
+}
+
 function showToast(pesan, ok) {
   const t = document.getElementById('toast');
   t.textContent = pesan;
@@ -1577,7 +1684,7 @@ function inisial(nama) {
 }
 
 function cekTombolPresensi() {
-  const st = sesi.status || {};
+  const st = statusEfektif();
   const btnMasuk = document.getElementById('btn-presensi-masuk');
   const btnPulang = document.getElementById('btn-presensi-pulang');
   const adaLokasi = !!posisiTerkini && !gpsAnomaliAktif && !akurasiBelumLayak();
@@ -1617,6 +1724,10 @@ function muatHome() {
   document.getElementById('cap-masuk').textContent = st.jamMasuk || '--:--';
   document.getElementById('cap-pulang').textContent = st.jamPulang || '--:--';
   cekTombolPresensi();
+  // Antrian offline baru terbaca dari IndexedDB secara async; begitu selesai,
+  // tombol Masuk/Pulang dikoreksi ulang kalau ternyata ada CLOCK IN/OUT yang
+  // masih menunggu upload dari sesi sebelumnya (app baru dibuka lagi).
+  segarkanOverlayAntrianAbsen().then(cekTombolPresensi);
 
   setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 200);
 }
@@ -1633,6 +1744,7 @@ async function refreshStatus() {
 }
 
 async function muatRiwayatInline() {
+  renderAntrianPending();
   const box = document.getElementById('home-riwayat');
   box.innerHTML = '<div class="empty-state">Memuat...</div>';
   const res = await api('riwayatAbsensi', { nama: sesi.nama, pin: sesi.pin });
@@ -1956,17 +2068,34 @@ document.getElementById('btn-kirim-presensi').addEventListener('click', async ()
   if (akurasiBelumLayak()) return showToast('Akurasi GPS masih kasar (±' + posisiTerkini.akurasi + 'm). Tunggu sebentar atau pindah ke tempat terbuka.', false);
   const btn = document.getElementById('btn-kirim-presensi');
   setBusy(btn, true, 'Mengirim...', 'Kirim');
-  const res = await api('simpanAbsen', {
+  const payload = {
     nama: sesi.nama, pin: sesi.pin, jenisAbsen: presensiJenis,
     fotoBase64: presensiFotoB64, mimeType: 'image/jpeg',
     lat: posisiTerkini.lat, lng: posisiTerkini.lng, akurasi: posisiTerkini.akurasi
-  });
+  };
+  const res = await api('simpanAbsen', payload);
   setBusy(btn, false, '', 'Kirim');
+
+  // TIDAK ADA KONEKSI (bukan ditolak server) -> antre di IndexedDB device ini,
+  // tampil & bisa diupload ulang manual dari modal Riwayat Absensi.
+  if (res.offline) {
+    await tambahAntrian({
+      action: 'simpanAbsen', payload,
+      labelTampilan: presensiJenis === 'CLOCK IN' ? 'Presensi Masuk' : 'Presensi Pulang',
+      waktuTampilan: new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    });
+    antrianAbsenTerakhirJenis = presensiJenis;
+    showToast('Tidak ada koneksi. Presensi tersimpan di perangkat, akan diupload otomatis saat sinyal kembali.', true);
+    tutupModalPresensi();
+    muatHome();
+    return;
+  }
+
   showToast(res.pesan, res.sukses);
-  
+
   // LOG BILA GAGAL ABSEN
   if (!res.sukses) kirimLogKeSistem('ERROR_ABSEN', res.pesan);
-  
+
   if (res.sukses) {
     tutupModalPresensi();
     await refreshStatus();
@@ -2053,13 +2182,26 @@ document.getElementById('btn-kirim-patroli').addEventListener('click', async () 
   if (akurasiBelumLayak()) return showToast('Akurasi GPS masih kasar (±' + posisiTerkini.akurasi + 'm). Tunggu sebentar atau pindah ke tempat terbuka.', false);
   const btn = document.getElementById('btn-kirim-patroli');
   setBusy(btn, true, 'Mengirim...', 'Kirim Laporan Patroli');
-  const res = await api('simpanPatroli', {
+  const payload = {
     nama: sesi.nama, pin: sesi.pin, namaPos: patroliState.namaPos,
     fotoBase64: patroliState.fotoB64, mimeType: 'image/jpeg',
     lat: posisiTerkini.lat, lng: posisiTerkini.lng, akurasi: posisiTerkini.akurasi,
     catatan: document.getElementById('patroli-catatan').value.trim()
-  });
+  };
+  const res = await api('simpanPatroli', payload);
   setBusy(btn, false, '', 'Kirim Laporan Patroli');
+
+  if (res.offline) {
+    await tambahAntrian({
+      action: 'simpanPatroli', payload,
+      labelTampilan: 'Patroli — ' + patroliState.namaPos,
+      waktuTampilan: new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    });
+    showToast('Tidak ada koneksi. Laporan patroli tersimpan di perangkat, akan diupload otomatis saat sinyal kembali.', true);
+    setTimeout(() => showScreen('home'), 1000);
+    return;
+  }
+
   showToast(res.pesan, res.sukses);
   if (res.sukses) setTimeout(() => showScreen('home'), 1000);
 });
@@ -2902,6 +3044,7 @@ async function kjGambarPdf(l, tingkat) {
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+  window.addEventListener('load', () => { prosesAntrianOffline().catch(() => {}); });
 }
 </script>
 </body>
