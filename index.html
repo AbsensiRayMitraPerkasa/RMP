@@ -1464,6 +1464,16 @@ function tampilkanGpsDiblokir(pesan) {
   document.getElementById('gps-denied-banner').classList.remove('hidden');
   kirimLogKeSistem('ERROR_GPS', pesan);
 }
+// err.message bawaan browser berbahasa Inggris & teknis (mis. "Timeout expired"),
+// membingungkan buat karyawan lapangan. POSITION_UNAVAILABLE (GPS/Lokasi HP
+// dimatikan di level sistem) dibedakan dari TIMEOUT (sinyal lemah/lokasi
+// belum ketemu tapi watchPosition tetap akan terus mencoba di belakang layar).
+function pesanErrorGps(err) {
+  if (err.code === err.POSITION_UNAVAILABLE) {
+    return 'Sinyal GPS tidak ditemukan. Pastikan Lokasi/GPS aktif di Setelan HP Anda.';
+  }
+  return 'Sinyal GPS lemah/belum ketemu. Coba pindah ke tempat terbuka atau tunggu sebentar.';
+}
 function mulaiPantauLokasi() {
   initMapFallback();
   if (!navigator.geolocation) return;
@@ -1491,8 +1501,15 @@ function mulaiPantauLokasi() {
       if (err.code === err.PERMISSION_DENIED) {
         tampilkanGpsDiblokir(err.message);
       } else {
-        document.getElementById('gps-status').textContent = 'GPS tidak aktif: ' + err.message;
-        kirimLogKeSistem('ERROR_GPS', err.message);
+        kirimLogKeSistem('ERROR_GPS', err.message + ' (code ' + err.code + ')');
+        // Masih dalam masa pemanasan -> watchPosition tetap akan terus
+        // mencoba di belakang layar, jangan tampilkan pesan menakutkan dulu.
+        if (!gpsWarmupSelesai) {
+          document.getElementById('gps-status').textContent = '📡 Menstabilkan sinyal GPS, mohon tunggu sebentar...';
+        } else {
+          document.getElementById('gps-dot').style.background = 'var(--red)';
+          document.getElementById('gps-status').textContent = pesanErrorGps(err);
+        }
       }
     },
     { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
@@ -1597,8 +1614,8 @@ document.getElementById('link-kalibrasi').addEventListener('click', (e) => {
       if (err.code === err.PERMISSION_DENIED) {
         tampilkanGpsDiblokir(err.message);
       } else {
-        showToast('Gagal kalibrasi: ' + err.message, false);
-        kirimLogKeSistem('ERROR_GPS_KALIBRASI', err.message);
+        showToast(pesanErrorGps(err), false);
+        kirimLogKeSistem('ERROR_GPS_KALIBRASI', err.message + ' (code ' + err.code + ')');
       }
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
