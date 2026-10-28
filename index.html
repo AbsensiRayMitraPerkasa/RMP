@@ -1076,6 +1076,19 @@ function akurasiBelumLayak() {
   return !!posisiTerkini && posisiTerkini.akurasi > AKURASI_MAKS_M;
 }
 
+// Masa "pemanasan" GPS: fix PERTAMA yang datang dari watchPosition sering
+// berasal dari lokasi perkiraan WiFi/menara seluler (akurasi dilaporkan kecil
+// tapi posisinya bisa meleset ribuan meter) sebelum GPS asli dapat kunci
+// satelit — beda dengan app Maps native yang biasa sudah punya fix GPS lama
+// ter-cache. Selama masa ini, status "Dalam/Luar Radius" ditahan dulu (tombol
+// presensi tetap nonaktif) supaya karyawan tidak melihat "Di luar Radius"
+// yang menakutkan padahal cuma GPS belum mantap. Selesai lebih cepat kalau
+// fix yang datang sudah cukup akurat (lihat GPS_WARMUP_AKURASI_CEPAT_M).
+const GPS_WARMUP_MS = 6000;
+const GPS_WARMUP_AKURASI_CEPAT_M = 30;
+let gpsWarmupSelesai = false;
+let gpsWarmupTimer = null;
+
 async function api(action, payload) {
   try {
     const res = await fetch(API_URL, {
@@ -1456,6 +1469,16 @@ function mulaiPantauLokasi() {
   if (!navigator.geolocation) return;
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
 
+  gpsWarmupSelesai = false;
+  clearTimeout(gpsWarmupTimer);
+  gpsWarmupTimer = setTimeout(() => {
+    gpsWarmupSelesai = true;
+    // Paksa render ulang pakai fix terakhir yang sudah didapat, supaya status
+    // langsung terupdate begitu masa pemanasan selesai (tidak perlu menunggu
+    // fix watchPosition berikutnya yang jadwalnya tidak pasti).
+    if (posisiTerkini) updatePosisi(posisiTerkini.lat, posisiTerkini.lng, posisiTerkini.akurasi, Date.now());
+  }, GPS_WARMUP_MS);
+
   if (navigator.permissions && navigator.permissions.query) {
     navigator.permissions.query({ name: 'geolocation' }).then(status => {
       if (status.state === 'denied') tampilkanGpsDiblokir('Izin lokasi berstatus denied (permissions API).');
@@ -1488,30 +1511,46 @@ function updatePosisi(lat, lng, akurasi, waktuPosisi) {
   gpsAnomaliAktif = anomali.length > 0;
   gpsAnomaliPesan = anomali.join(' | ');
 
+  // Fix yang sudah cukup akurat sejak awal -> tidak perlu menunggu penuh,
+  // langsung selesaikan masa pemanasan supaya karyawan tidak nunggu tanpa alasan.
+  if (!gpsWarmupSelesai && akurasi <= GPS_WARMUP_AKURASI_CEPAT_M) {
+    gpsWarmupSelesai = true;
+    clearTimeout(gpsWarmupTimer);
+  }
+
   document.getElementById('gps-denied-banner').classList.add('hidden');
-  document.getElementById('gps-dot').style.background = gpsAnomaliAktif ? 'var(--red)' : 'var(--green)';
   document.getElementById('gps-akurasi').textContent = '± ' + akurasi + ' m';
   document.getElementById('link-gmaps').href = 'https://www.google.com/maps?q=' + lat + ',' + lng;
 
   const terdekat = cariLokasiTerdekat(lat, lng);
   const banner = document.getElementById('gps-banner');
-  if (gpsAnomaliAktif) {
+  if (!gpsWarmupSelesai && !gpsAnomaliAktif) {
+    document.getElementById('gps-dot').style.background = 'var(--tan-text)';
+    document.getElementById('gps-jarak').textContent = terdekat ? Math.round(terdekat.jarak) + ' m' : '-';
+    document.getElementById('gps-lokasi').textContent = terdekat ? terdekat.lokasi.nama : '-';
+    banner.classList.toggle('ok', false);
+    document.getElementById('gps-status').textContent = '📡 Menstabilkan sinyal GPS, mohon tunggu sebentar...';
+  } else if (gpsAnomaliAktif) {
+    document.getElementById('gps-dot').style.background = 'var(--red)';
     document.getElementById('gps-jarak').textContent = terdekat ? Math.round(terdekat.jarak) + ' m' : '-';
     document.getElementById('gps-lokasi').textContent = terdekat ? terdekat.lokasi.nama : '-';
     banner.classList.toggle('ok', false);
     document.getElementById('gps-status').textContent = 'Lokasi GPS tidak wajar, coba lagi';
   } else if (akurasiBelumLayak()) {
+    document.getElementById('gps-dot').style.background = 'var(--red)';
     document.getElementById('gps-jarak').textContent = terdekat ? Math.round(terdekat.jarak) + ' m' : '-';
     document.getElementById('gps-lokasi').textContent = terdekat ? terdekat.lokasi.nama : '-';
     banner.classList.toggle('ok', false);
     document.getElementById('gps-status').textContent = 'Akurasi GPS masih kasar (±' + akurasi + ' m), tunggu sebentar atau pindah ke tempat terbuka';
   } else if (terdekat) {
+    const dalamRadius = terdekat.jarak <= terdekat.lokasi.radius;
+    document.getElementById('gps-dot').style.background = dalamRadius ? 'var(--green)' : 'var(--red)';
     document.getElementById('gps-jarak').textContent = Math.round(terdekat.jarak) + ' m';
     document.getElementById('gps-lokasi').textContent = terdekat.lokasi.nama;
-    const dalamRadius = terdekat.jarak <= terdekat.lokasi.radius;
     banner.classList.toggle('ok', dalamRadius);
     document.getElementById('gps-status').textContent = dalamRadius ? 'Dalam Radius Absensi' : 'Di luar Radius Absensi';
   } else {
+    document.getElementById('gps-dot').style.background = 'var(--tan-text)';
     document.getElementById('gps-jarak').textContent = '-';
     document.getElementById('gps-lokasi').textContent = 'Belum ada data lokasi';
     document.getElementById('gps-status').textContent = 'Tidak dapat dihitung';
@@ -1687,7 +1726,7 @@ function cekTombolPresensi() {
   const st = statusEfektif();
   const btnMasuk = document.getElementById('btn-presensi-masuk');
   const btnPulang = document.getElementById('btn-presensi-pulang');
-  const adaLokasi = !!posisiTerkini && !gpsAnomaliAktif && !akurasiBelumLayak();
+  const adaLokasi = !!posisiTerkini && !gpsAnomaliAktif && !akurasiBelumLayak() && gpsWarmupSelesai;
 
   // shiftAktif = ada CLOCK IN yang belum dipasangkan CLOCK OUT. Dipakai
   // (bukan sudahClockIn/sudahClockOut) supaya karyawan bisa CLOCK IN lagi
