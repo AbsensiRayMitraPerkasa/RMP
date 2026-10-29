@@ -140,6 +140,16 @@
   .panel{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:16px; box-shadow:var(--shadow);}
   .section-title{font-size:15.5px; font-weight:700; margin-bottom:12px; color:var(--navy);}
 
+  .harian-bar{display:flex; align-items:center; justify-content:center; gap:10px;}
+  .harian-arrow{
+    width:34px; height:34px; flex:none; display:inline-flex; align-items:center; justify-content:center;
+    background:var(--navy-soft); border:1px solid var(--border); color:var(--navy); border-radius:var(--radius-sm);
+    font-size:16px; font-weight:700; cursor:pointer;
+  }
+  .harian-arrow:active{transform:scale(.96);}
+  .harian-date{width:auto; max-width:170px;}
+  .harian-info{font-size:12px; margin-top:10px; text-align:center;}
+
   table{width:100%; border-collapse:collapse; font-size:13px;}
   th,td{text-align:left; padding:9px 8px; border-bottom:1px solid var(--border); white-space:nowrap;}
   th{color:var(--muted); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.3px;}
@@ -338,6 +348,16 @@
     <section class="tabpanel active" id="tab-absensi">
       <div class="stat-grid" id="absensi-stats"></div>
       <div class="panel">
+        <div class="section-title">Ringkasan Harian</div>
+        <div class="harian-bar">
+          <button class="harian-arrow" id="absensi-harian-prev" aria-label="Hari sebelumnya">&#8592;</button>
+          <input type="date" id="absensi-harian-tanggal" class="harian-date">
+          <button class="harian-arrow" id="absensi-harian-next" aria-label="Hari berikutnya">&#8594;</button>
+        </div>
+        <div class="stat-grid" id="absensi-harian-stats" style="margin-top:14px; margin-bottom:0;"></div>
+        <div class="muted harian-info" id="absensi-harian-info"></div>
+      </div>
+      <div class="panel">
         <div class="section-title">Tren 6 Bulan Terakhir</div>
         <div class="chart" id="absensi-chart"></div>
         <div class="legend">
@@ -370,6 +390,16 @@
     
     <section class="tabpanel" id="tab-patroli">
       <div class="stat-grid" id="patroli-stats"></div>
+      <div class="panel">
+        <div class="section-title">Ringkasan Harian</div>
+        <div class="harian-bar">
+          <button class="harian-arrow" id="patroli-harian-prev" aria-label="Hari sebelumnya">&#8592;</button>
+          <input type="date" id="patroli-harian-tanggal" class="harian-date">
+          <button class="harian-arrow" id="patroli-harian-next" aria-label="Hari berikutnya">&#8594;</button>
+        </div>
+        <div class="stat-grid" id="patroli-harian-stats" style="margin-top:14px; margin-bottom:0;"></div>
+        <div class="muted harian-info" id="patroli-harian-info"></div>
+      </div>
       <div class="panel">
         <div class="section-title">Per Staf Security</div>
         <div class="table-scroll">
@@ -760,6 +790,13 @@ let peran = '';
 let filterBulan, filterTahun;
 const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
+function tanggalHariIni() {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+let tanggalHarianAbsensi = tanggalHariIni();
+let tanggalHarianPatroli = tanggalHariIni();
+
 async function api(action, payload) {
   try {
     const dasar = { action, kodeKlien: KODE_KLIEN, akses: AKSES_PARAM };
@@ -1043,8 +1080,10 @@ document.querySelectorAll('.subtabs[data-target]').forEach(group => {
 function muatSemuaDashboard() {
   muatDashboardAbsensi();
   muatRiwayatAbsensiDetail();
+  muatRingkasanHarianAbsensi();
   muatDashboardOperasional('ambilDashboardPatroli', 'patroli-stats', 'patroli-table');
   muatRiwayatPatroliDetail();
+  muatRingkasanHarianPatroli();
   muatDashboardOperasional('ambilDashboardCleaning', 'cleaning-stats', 'cleaning-table');
   if (KLIEN_LAPORAN_KEJADIAN_DIIZINKAN.includes(KODE_KLIEN)) { muatDashboardKejadian(); muatRiwayatKejadianDetail(); }
 }
@@ -1527,6 +1566,58 @@ async function muatDashboardOperasional(action, statsId, tableId) {
     ? gabungDenganPemisah(kpi.perStaf, 4, renderBarisOperasional, 'Karyawan Nonaktif')
     : '<tr><td colspan="4" class="muted">Belum ada staf terdaftar untuk divisi ini.</td></tr>';
 }
+
+function jamSekarangID() {
+  return new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function geserTanggalHarian(jenis, delta) {
+  const idInput = jenis === 'absensi' ? 'absensi-harian-tanggal' : 'patroli-harian-tanggal';
+  const skrg = jenis === 'absensi' ? tanggalHarianAbsensi : tanggalHarianPatroli;
+  const d = new Date(skrg + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  const baru = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  if (jenis === 'absensi') { tanggalHarianAbsensi = baru; muatRingkasanHarianAbsensi(); }
+  else { tanggalHarianPatroli = baru; muatRingkasanHarianPatroli(); }
+}
+
+async function muatRingkasanHarianAbsensi() {
+  document.getElementById('absensi-harian-tanggal').value = tanggalHarianAbsensi;
+  const res = await api('ambilRingkasanHarianAbsensi', { password: adminPassword, tanggal: tanggalHarianAbsensi });
+  if (!res.sukses) return showToast(res.pesan, false);
+  const r = res.ringkasan;
+  document.getElementById('absensi-harian-stats').innerHTML =
+    statTile(r.jumlahAbsen, 'Absen') +
+    statTile(r.jumlahTidakAbsen, 'Tidak Absen');
+  document.getElementById('absensi-harian-info').textContent =
+    'Tanggal ' + formatTglID(tanggalHarianAbsensi) + ' · Diperbarui pukul ' + jamSekarangID();
+}
+
+async function muatRingkasanHarianPatroli() {
+  document.getElementById('patroli-harian-tanggal').value = tanggalHarianPatroli;
+  const res = await api('ambilRingkasanHarianPatroli', { password: adminPassword, tanggal: tanggalHarianPatroli });
+  if (!res.sukses) return showToast(res.pesan, false);
+  const r = res.ringkasan;
+  document.getElementById('patroli-harian-stats').innerHTML =
+    statTile(r.jumlahTitik, 'Titik Dilaporkan');
+  document.getElementById('patroli-harian-info').textContent =
+    'Tanggal ' + formatTglID(tanggalHarianPatroli) + ' · Diperbarui pukul ' + jamSekarangID();
+}
+
+document.getElementById('absensi-harian-prev').addEventListener('click', () => geserTanggalHarian('absensi', -1));
+document.getElementById('absensi-harian-next').addEventListener('click', () => geserTanggalHarian('absensi', 1));
+document.getElementById('absensi-harian-tanggal').addEventListener('change', (e) => {
+  if (!e.target.value) return;
+  tanggalHarianAbsensi = e.target.value;
+  muatRingkasanHarianAbsensi();
+});
+document.getElementById('patroli-harian-prev').addEventListener('click', () => geserTanggalHarian('patroli', -1));
+document.getElementById('patroli-harian-next').addEventListener('click', () => geserTanggalHarian('patroli', 1));
+document.getElementById('patroli-harian-tanggal').addEventListener('change', (e) => {
+  if (!e.target.value) return;
+  tanggalHarianPatroli = e.target.value;
+  muatRingkasanHarianPatroli();
+});
 
 function kpiBadge(text, tercapai) {
   return '<span class="kpi-badge ' + (tercapai ? 'ok' : 'bad') + '">' + text + '</span>';
