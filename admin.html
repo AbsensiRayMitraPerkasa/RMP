@@ -3007,7 +3007,7 @@ async function unduhRekapTemplateKemenag(bulan, tahun) {
 
 document.getElementById('btn-unduh-rekap').addEventListener('click', async () => {
   const btn = document.getElementById('btn-unduh-rekap');
-  if (kodeKlienAktif() === KODE_KLIEN_TEMPLATE_HWI) {
+  if (String(kodeKlienAktif() || '').trim().toLowerCase() === KODE_KLIEN_TEMPLATE_HWI) {
     setBusy(btn, true, 'Menyiapkan...', 'Unduh Excel');
     try {
       await unduhRekapTemplateKemenag(filterBulan, filterTahun);
