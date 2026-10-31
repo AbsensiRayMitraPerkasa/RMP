@@ -2848,7 +2848,17 @@ async function unduhRekapTemplateKemenag(bulan, tahun) {
   if (!resKaryawan.sukses) return showToast(resKaryawan.pesan, false);
   if (!resAbsensi.sukses) return showToast(resAbsensi.pesan, false);
 
-  const daftarKaryawan = (resKaryawan.daftar || []).filter(k => k.status !== 'nonaktif');
+  // Urutan baris di rekap: Administrasi dulu, lalu Cleaning Service, bagian
+  // lain yang belum disebut user di tengah, Security selalu paling bawah
+  // (disepakati 2026-10-31). Di dalam satu bagian, urut nama A-Z.
+  const URUTAN_BAGIAN_DEPAN = ['Administrasi', 'Cleaning Service'];
+  const peringkatBagian = (bagianKerja) => {
+    if (bagianKerja === 'Security') return 99;
+    const idx = URUTAN_BAGIAN_DEPAN.indexOf(bagianKerja);
+    return idx === -1 ? 50 : idx;
+  };
+  const daftarKaryawan = (resKaryawan.daftar || []).filter(k => k.status !== 'nonaktif')
+    .sort((a, b) => peringkatBagian(a.bagianKerja) - peringkatBagian(b.bagianKerja) || a.nama.localeCompare(b.nama));
   const jamKerjaList = resJamKerja.daftar || [];
 
   // Standar jam kerja per bagian (selain Security) - fallback ke Administrasi
