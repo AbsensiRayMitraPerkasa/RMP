@@ -1834,6 +1834,7 @@ const ENTITAS_KELOLA = {
     fields: [
       { key: 'bagianKerja', label: 'Bagian Kerja', type: 'select', options: ['Cleaning Service','Administrasi','Pengemudi','Tenaga Lapangan','Tenaga Produksi','Tenaga Operator','Lainnya'] },
       { key: 'jamMasuk', label: 'Jam Masuk Standar (HH:mm)', type: 'text' },
+      { key: 'jamKeluar', label: 'Jam Keluar Standar (HH:mm, opsional)', type: 'text' },
       { key: 'toleransi', label: 'Toleransi (menit)', type: 'number' },
       { key: 'potonganPerJam', label: 'Potongan per Jam Telat (Rp)', type: 'number' }
     ]
@@ -2810,8 +2811,212 @@ async function muatLokasiRekap() {
   sel.innerHTML = '<option value="">Semua Lokasi</option>' +
     daftar.map(l => '<option value="' + l.nama + '">' + l.nama + '</option>').join('');
 }
+// ---------- REKAP EXCEL ALA TEMPLATE (khusus KEMENAG PROV JATENG) ----------
+// Meniru struktur file template "REKAP ABSENSI HWI <bulan>" yang dipelajari
+// 2026-10-31: 3 jenis sheet (ringkasan per orang, matriks keterlambatan, detail
+// harian per karyawan) - bukan 1 sheet flat seperti rekap klien lain di bawah.
+// Aturan bisnis yang disepakati bersama user (2026-10-31), JANGAN diasumsikan
+// berlaku untuk klien lain tanpa ditanya ulang:
+// - OFF = hari Minggu, KECUALI Security (kerja shift terus-menerus, tidak ada
+//   OFF mingguan otomatis - hari tanpa absen & tanpa ijin dihitung Alpa, bukan
+//   OFF, karena RMP belum punya data roster libur per orang).
+// - Security pakai 2 shift 12 jam (Pagi 07:00-19:00, Malam 19:00-07:00) HANYA
+//   di rekap ini (hardcode di bawah). Config jam_kerja_standar Security di
+//   database SENGAJA TIDAK diubah (masih 3 shift 8 jam) atas keputusan user -
+//   jadi dashboard/Penilaian & Evaluasi klien ini tetap pakai angka lama.
+// - Pengemudi & "Lainnya" disamakan jam kerjanya dengan Administrasi.
+const KODE_KLIEN_TEMPLATE_HWI = 'kemenag-prov-jateng';
+const HARI_INDO = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+function jamKeMenitTpl(jam) {
+  if (!jam) return null;
+  const [h, m] = String(jam).split(':').map(Number);
+  return h * 60 + m;
+}
+function menitKeJamTpl(menit) {
+  const bulat = ((menit % 1440) + 1440) % 1440;
+  return String(Math.floor(bulat / 60)).padStart(2, '0') + ':' + String(bulat % 60).padStart(2, '0');
+}
+
+async function unduhRekapTemplateKemenag(bulan, tahun) {
+  const [resKaryawan, resJamKerja, resAbsensi, resIjin] = await Promise.all([
+    api('getDaftarKaryawanAdmin', { password: adminPassword }),
+    api('getDaftarJamKerjaAdmin', { password: adminPassword }),
+    api('daftarAbsensiDetailAdmin', { password: adminPassword, bulan, tahun }),
+    api('daftarIjinDisetujuiPeriodeAdmin', { password: adminPassword, bulan, tahun }),
+  ]);
+  if (!resKaryawan.sukses) return showToast(resKaryawan.pesan, false);
+  if (!resAbsensi.sukses) return showToast(resAbsensi.pesan, false);
+
+  const daftarKaryawan = (resKaryawan.daftar || []).filter(k => k.status !== 'nonaktif');
+  const jamKerjaList = resJamKerja.daftar || [];
+
+  // Standar jam kerja per bagian (selain Security) - fallback ke Administrasi
+  // untuk Pengemudi/Lainnya/bagian lain yang belum punya jam standar sendiri.
+  const standarBagian = {};
+  jamKerjaList.forEach(j => {
+    if (j.bagianKerja === 'Security') return;
+    standarBagian[j.bagianKerja] = {
+      masuk: jamKeMenitTpl(j.jamMasuk), keluar: jamKeMenitTpl(j.jamKeluar),
+      toleransi: j.toleransi || 0, potonganPerJam: Number(j.potonganPerJam) || 0,
+    };
+  });
+  const standarAdministrasi = standarBagian['Administrasi'] || { masuk: 450, keluar: 960, toleransi: 0, potonganPerJam: 0 };
+  const standarUntuk = (bagianKerja) => standarBagian[bagianKerja] || standarAdministrasi;
+  const potonganSecurity = (jamKerjaList.find(j => j.bagianKerja === 'Security') || {}).potonganPerJam || 0;
+  const SHIFT_SECURITY = [
+    { nama: 'Pagi', masuk: 420, keluar: 1140, toleransi: 0 },
+    { nama: 'Malam', masuk: 1140, keluar: 420, toleransi: 0 },
+  ];
+  const shiftSecurityTerdekat = (menitMasuk) => SHIFT_SECURITY.reduce((terbaik, s) => {
+    const jarak = Math.min(Math.abs(menitMasuk - s.masuk), 1440 - Math.abs(menitMasuk - s.masuk));
+    const jarakTerbaik = Math.min(Math.abs(menitMasuk - terbaik.masuk), 1440 - Math.abs(menitMasuk - terbaik.masuk));
+    return jarak < jarakTerbaik ? s : terbaik;
+  }, SHIFT_SECURITY[0]);
+
+  const jumlahHari = new Date(tahun, bulan, 0).getDate();
+  const tanggalList = Array.from({ length: jumlahHari }, (_, i) => i + 1);
+
+  const absensiMap = {};
+  (resAbsensi.daftar || []).forEach(r => { absensiMap[r.nama + '|' + r.tanggal] = r; });
+  const ijinSet = new Set();
+  (resIjin.daftar || []).forEach(r => { ijinSet.add(r.nama + '|' + r.tanggalIjin); });
+
+  const ringkasanRows = [];
+  const keterlambatanRows = [];
+  const detailSheets = [];
+
+  daftarKaryawan.forEach((k, idx) => {
+    const isSecurity = k.bagianKerja === 'Security';
+    const standar = isSecurity ? null : standarUntuk(k.bagianKerja);
+
+    let hadir = 0, alpa = 0, masukSaatOff = 0, jumlahOff = 0, poinTelat = 0, totalPotongan = 0;
+    const baris = [];
+    const poinHarian = [];
+
+    tanggalList.forEach(d => {
+      const tgl = tahun + '-' + String(bulan).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      const isMinggu = new Date(tahun, bulan - 1, d).getDay() === 0;
+      const isOff = !isSecurity && isMinggu;
+      const sesi = absensiMap[k.nama + '|' + tgl];
+      const ada = !!(sesi && sesi.jamMasuk);
+      const izin = ijinSet.has(k.nama + '|' + tgl);
+      if (isOff) jumlahOff++;
+
+      let jadwalMasuk = '-', jadwalKeluar = '-', aktualMasuk = '-', aktualKeluar = '-', info = '-', poinHari = 0;
+
+      if (isSecurity) {
+        if (ada) {
+          const menitMasuk = jamKeMenitTpl(sesi.jamMasuk);
+          const shift = shiftSecurityTerdekat(menitMasuk);
+          jadwalMasuk = menitKeJamTpl(shift.masuk); jadwalKeluar = menitKeJamTpl(shift.keluar);
+          aktualMasuk = sesi.jamMasuk; aktualKeluar = sesi.jamKeluar || '-';
+          info = 'Shift ' + shift.nama;
+          const telat = Math.max(0, menitMasuk - shift.masuk - shift.toleransi);
+          poinHari = Math.ceil(telat / 60);
+          hadir++;
+        } else if (izin) {
+          info = 'IJIN';
+        } else {
+          info = 'ALPA (shift tidak diketahui)';
+          alpa++;
+        }
+      } else {
+        jadwalMasuk = menitKeJamTpl(standar.masuk);
+        jadwalKeluar = standar.keluar != null ? menitKeJamTpl(standar.keluar) : '-';
+        if (isOff) {
+          jadwalMasuk = 'OFF'; jadwalKeluar = 'OFF';
+          if (ada) {
+            aktualMasuk = sesi.jamMasuk; aktualKeluar = sesi.jamKeluar || '-';
+            info = 'MASUK SAAT OFF'; masukSaatOff++;
+          } else {
+            info = 'OFF';
+          }
+        } else if (ada) {
+          aktualMasuk = sesi.jamMasuk; aktualKeluar = sesi.jamKeluar || '-';
+          info = k.bagianKerja;
+          const menitMasuk = jamKeMenitTpl(sesi.jamMasuk);
+          const telat = Math.max(0, menitMasuk - standar.masuk - standar.toleransi);
+          poinHari = Math.ceil(telat / 60);
+          hadir++;
+        } else if (izin) {
+          info = 'IJIN';
+        } else {
+          info = 'ALPA'; alpa++;
+        }
+      }
+
+      const potonganHari = poinHari * (isSecurity ? potonganSecurity : standar.potonganPerJam);
+      poinTelat += poinHari; totalPotongan += potonganHari;
+      poinHarian.push(poinHari);
+      baris.push([
+        'KEMENAG PROV JATENG', k.nama, k.bagianKerja, tgl, jadwalMasuk, jadwalKeluar, aktualMasuk, aktualKeluar, info,
+      ]);
+    });
+
+    ringkasanRows.push([idx + 1, k.nama, k.bagianKerja, jumlahHari - jumlahOff, hadir, alpa, masukSaatOff, jumlahOff]);
+    keterlambatanRows.push([idx + 1, k.nama, ...poinHarian, poinTelat, -Math.round(totalPotongan)]);
+    detailSheets.push({ nama: k.nama, baris });
+  });
+
+  const wb = XLSX.utils.book_new();
+  const judulPeriode = NAMA_BULAN[bulan - 1].toUpperCase() + ' ' + tahun;
+
+  // ---- Sheet 1: REKAP ABSENSI PER ORANG ----
+  const wsRingkasan = XLSX.utils.aoa_to_sheet([
+    ['REKAPITULASI KETIDAKHADIRAN & KEHADIRAN KARYAWAN'],
+    ['KEMENAG PROV JATENG - PERIODE ' + judulPeriode],
+    ['NO', 'NAMA KARYAWAN', 'JABATAN', 'HARI KERJA SCHEDULE', 'JUMLAH HADIR', 'TIDAK ABSEN / ALPA', 'MASUK SAAT SCHEDULE OFF', 'JUMLAH LIBUR (OFF)'],
+    ...ringkasanRows,
+  ]);
+  XLSX.utils.book_append_sheet(wb, wsRingkasan, 'REKAP ABSENSI PER ORANG');
+
+  // ---- Sheet 2: KETERLAMBATAN ----
+  const totalSemua = -Math.round(keterlambatanRows.reduce((s, r) => s + Math.abs(r[r.length - 1]), 0));
+  const barisKosongHari = Array(tanggalList.length).fill('');
+  const wsKeterlambatan = XLSX.utils.aoa_to_sheet([
+    ['REKAP POTONGAN KETERLAMBATAN JAM KERJA'],
+    ['KEMENAG PROV JATENG'],
+    ['01 - ' + jumlahHari + ' ' + judulPeriode],
+    ['NO', 'ANGGOTA', '01 - ' + jumlahHari + ' ' + judulPeriode, ...barisKosongHari.slice(1), 'POIN KETERLAMBATAN', 'TOTAL KETERLAMBATAN'],
+    ['', '', ...tanggalList, '', ''],
+    ['', '', ...tanggalList.map(d => HARI_INDO[new Date(tahun, bulan - 1, d).getDay()]), '', ''],
+    ...keterlambatanRows,
+    ['TOTAL REKAP POTONGAN KETERLAMBATAN JAM KERJA', '', ...barisKosongHari, '', totalSemua],
+  ]);
+  XLSX.utils.book_append_sheet(wb, wsKeterlambatan, 'KETERLAMBATAN');
+
+  // ---- Sheet 3+: detail harian per karyawan (nama sheet maks 31 char, tanpa karakter terlarang Excel, dedup kalau ada nama kembar) ----
+  const namaSheetDipakai = new Set(['REKAP ABSENSI PER ORANG', 'KETERLAMBATAN']);
+  detailSheets.forEach(({ nama, baris }) => {
+    const dasar = nama.replace(/[\\/?*[\]:]/g, ' ').trim().slice(0, 31) || 'Karyawan';
+    let namaSheet = dasar, i = 2;
+    while (namaSheetDipakai.has(namaSheet.toUpperCase())) { namaSheet = (dasar.slice(0, 28) + ' ' + i).slice(0, 31); i++; }
+    namaSheetDipakai.add(namaSheet.toUpperCase());
+    const wsDetail = XLSX.utils.aoa_to_sheet([
+      ['DAILY ATTENDANCE RECAP ' + judulPeriode],
+      ['KEMENAG PROV JATENG'],
+      ['CUSTOMER', 'NAME', 'POSITION', 'CLOCKING DATE', 'SCHEDULE', '', 'ACTUAL', '', 'INFORMATION'],
+      ...baris,
+    ]);
+    XLSX.utils.book_append_sheet(wb, wsDetail, namaSheet);
+  });
+
+  XLSX.writeFile(wb, 'Rekap_Absensi_KEMENAG_PROV_JATENG_Template_' + NAMA_BULAN[bulan - 1] + tahun + '.xlsx');
+}
+
 document.getElementById('btn-unduh-rekap').addEventListener('click', async () => {
   const btn = document.getElementById('btn-unduh-rekap');
+  if (kodeKlienAktif() === KODE_KLIEN_TEMPLATE_HWI) {
+    setBusy(btn, true, 'Menyiapkan...', 'Unduh Excel');
+    try {
+      await unduhRekapTemplateKemenag(filterBulan, filterTahun);
+    } catch (e) {
+      showToast('Gagal membuat rekap: ' + e.message, false);
+    }
+    setBusy(btn, false, '', 'Unduh Excel');
+    return;
+  }
   const lokasiPilihan = document.getElementById('rekap-lokasi').value;
   setBusy(btn, true, 'Menyiapkan...', 'Unduh Excel');
   const res = await api('daftarAbsensiDetailAdmin', { password: adminPassword, bulan: filterBulan, tahun: filterTahun });
