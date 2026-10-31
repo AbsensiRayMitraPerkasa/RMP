@@ -50,7 +50,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains&#43;Mono:wght@500;600&amp;display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- xlsx-js-style: fork SheetJS 0.18.5 yang BISA menulis warna/style sel (versi
+     cdnjs biasa tidak bisa, cuma baca) - API sama persis, dipakai juga oleh
+     rekap Excel flat klien lain di bawah, jadi aman diganti total. -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -2838,6 +2841,16 @@ function menitKeJamTpl(menit) {
   return String(Math.floor(bulat / 60)).padStart(2, '0') + ':' + String(bulat % 60).padStart(2, '0');
 }
 
+// Warna isian sel Sabtu/Minggu di sheet KETERLAMBATAN - butuh xlsx-js-style
+// (lihat tag <script> xlsx di <head>), SheetJS gratis biasa tidak bisa nulis
+// warna sel sama sekali.
+const WARNA_WEEKEND = { patternType: 'solid', fgColor: { rgb: 'FCE4D6' } };
+function warnaiSel(ws, baris0, kolom0, fill) {
+  const alamat = XLSX.utils.encode_cell({ r: baris0, c: kolom0 });
+  if (!ws[alamat]) ws[alamat] = { t: 's', v: '' };
+  ws[alamat].s = Object.assign({}, ws[alamat].s, { fill });
+}
+
 async function unduhRekapTemplateKemenag(bulan, tahun) {
   const [resKaryawan, resJamKerja, resAbsensi, resIjin] = await Promise.all([
     api('getDaftarKaryawanAdmin', { password: adminPassword }),
@@ -2979,6 +2992,10 @@ async function unduhRekapTemplateKemenag(bulan, tahun) {
     ['NO', 'NAMA KARYAWAN', 'JABATAN', 'HARI KERJA SCHEDULE', 'JUMLAH HADIR', 'TIDAK ABSEN / ALPA', 'MASUK SAAT SCHEDULE OFF', 'JUMLAH LIBUR (OFF)'],
     ...ringkasanRows,
   ]);
+  wsRingkasan['!cols'] = [{ wch: 4 }, { wch: 30 }, { wch: 16 }, { wch: 18 }, { wch: 13 }, { wch: 17 }, { wch: 22 }, { wch: 17 }];
+  // Sheet ini tidak punya kolom per-tanggal (cuma rekap total per orang),
+  // jadi "pewarnaan hari Sabtu/Minggu" tidak berlaku di sini - lihat sheet
+  // KETERLAMBATAN di bawah untuk pewarnaan kolom harian.
   XLSX.utils.book_append_sheet(wb, wsRingkasan, 'REKAP ABSENSI PER ORANG');
 
   // ---- Sheet 2: KETERLAMBATAN ----
@@ -2994,6 +3011,19 @@ async function unduhRekapTemplateKemenag(bulan, tahun) {
     ...keterlambatanRows,
     ['TOTAL REKAP POTONGAN KETERLAMBATAN JAM KERJA', '', ...barisKosongHari, '', totalSemua],
   ]);
+  wsKeterlambatan['!cols'] = [
+    { wch: 4 }, { wch: 30 }, ...tanggalList.map(() => ({ wch: 4 })), { wch: 16 }, { wch: 18 },
+  ];
+  // Warnai seluruh kolom Sabtu & Minggu (dari baris nomor tanggal sampai
+  // baris TOTAL paling bawah) supaya kelihatan beda dari hari kerja biasa.
+  const BARIS_AWAL_HARI_KETERLAMBATAN = 4; // 0-based: baris nomor tanggal (1,2,3,...)
+  const totalBarisKeterlambatan = BARIS_AWAL_HARI_KETERLAMBATAN + 2 + keterlambatanRows.length + 1;
+  tanggalList.forEach(d => {
+    const dow = new Date(tahun, bulan - 1, d).getDay();
+    if (dow !== 0 && dow !== 6) return; // cuma Minggu(0) & Sabtu(6)
+    const kolom0 = 2 + (d - 1);
+    for (let r = BARIS_AWAL_HARI_KETERLAMBATAN; r < totalBarisKeterlambatan; r++) warnaiSel(wsKeterlambatan, r, kolom0, WARNA_WEEKEND);
+  });
   XLSX.utils.book_append_sheet(wb, wsKeterlambatan, 'KETERLAMBATAN');
 
   // ---- Sheet 3+: detail harian per karyawan (nama sheet maks 31 char, tanpa karakter terlarang Excel, dedup kalau ada nama kembar) ----
