@@ -182,14 +182,26 @@
   .subtabs button{background:var(--navy-soft); border:1px solid var(--border); color:var(--muted); padding:7px 14px; border-radius:99px; cursor:pointer; font-size:13px; font-weight:600;}
   .subtabs button.active{color:var(--navy); border-color:var(--navy); background:#fff;}
 
+  /* Area scroll khusus Matriks Kehadiran (horizontal + vertikal jadi satu) -
+     SENGAJA bukan .table-scroll biasa (overflow-x:auto saja): kalau cuma
+     overflow-x yang di-set, browser otomatis mempromosikan overflow-y jadi
+     auto juga (aturan CSS overflow computed-value), dan div itu sendiri yang
+     jadi "nearest scrolling ancestor" buat position:sticky di thead, padahal
+     dia sendiri tidak pernah ter-scroll (tinggi ngikut konten) - akibatnya
+     header TIDAK PERNAH floating walau thead sudah position:sticky. Dengan
+     max-height+overflow:auto di sini, scroll vertikal beneran terjadi DI
+     DALAM kotak ini, jadi sticky top:0 thead-nya baru benar-benar nempel.
+     Kalau mau header mentok ke halaman bukan ke kotak ini, overflow-x
+     tidak bisa dipisah dari overflow-y oleh CSS murni - butuh markup beda. */
+  .matriks-scroll{max-height:65vh; overflow:auto; border:1px solid var(--border); border-radius:var(--radius-sm);}
   .tabel-matriks-absensi{table-layout:fixed;}
   .tabel-matriks-absensi th,.tabel-matriks-absensi td{white-space:nowrap; text-align:center; padding:6px 6px; overflow:hidden; text-overflow:ellipsis;}
   .tabel-matriks-absensi thead tr:last-child th{font-size:10.5px; color:var(--muted); text-transform:none;}
   .tabel-matriks-absensi th:first-child,.tabel-matriks-absensi td:first-child{text-align:left; position:sticky; left:0; background:var(--card); z-index:2;}
   .tabel-matriks-absensi th:nth-child(2),.tabel-matriks-absensi td:nth-child(2){text-align:left; position:sticky; left:180px; background:var(--card); z-index:2; box-shadow:2px 0 4px -2px rgba(16,30,54,.15);}
   /* Header (NAMA/BAGIAN/tanggal/Masuk-Keluar) tetap kelihatan saat scroll ke
-     bawah - top diisi JS (aturStickyTopMatriks/muatMatriksAbsensi) sesuai
-     tinggi header.top yang juga sticky, 0 di sini cuma fallback. */
+     bawah DI DALAM .matriks-scroll - top:0 nempel ke tepi atas kotak scroll
+     itu sendiri (baris 2 header di-geser JS sebesar tinggi baris 1). */
   .tabel-matriks-absensi thead th{position:sticky; top:0; background:var(--card); z-index:4;}
   .tabel-matriks-absensi thead th:first-child,.tabel-matriks-absensi thead th:nth-child(2){z-index:5;}
   /* Garis pemisah lebih tegas antar tanggal (di kolom Keluar / sisi kanan tiap pasang Masuk-Keluar) */
@@ -421,7 +433,7 @@
           <span><i style="background:var(--red-bg); box-shadow:inset 0 0 0 1px var(--red-text);"></i>Alpa (tidak absen &amp; tidak ijin)</span>
           <span><i style="background:var(--tan)"></i>Ijin Disetujui</span>
         </div>
-        <div class="table-scroll">
+        <div class="matriks-scroll">
           <table class="tabel-matriks-absensi">
             <colgroup id="absensi-matriks-colgroup"></colgroup>
             <thead id="absensi-matriks-thead"></thead>
@@ -1610,23 +1622,15 @@ function peringkatBagianMatriks(bagianKerja) {
   return idx === -1 ? 99 : idx;
 }
 
-// Header tabel Matriks (NAMA/BAGIAN/tanggal/Masuk-Keluar, 2 baris) harus tetap
-// kelihatan pas scroll halaman ke bawah. header.top sendiri sudah sticky
-// top:0 (lihat CSS), jadi baris 1 thead ditaruh persis di bawahnya (top =
-// tinggi header.top), baris 2 di bawah baris 1 (top = tinggi header.top +
-// tinggi baris 1). Dihitung dari offsetHeight asli, bukan hardcode px,
-// supaya tidak rusak kalau header.top melebar (wrap) di layar sempit.
+// Header tabel Matriks (NAMA/BAGIAN/tanggal/Masuk-Keluar, 2 baris) harus
+// tetap kelihatan pas kotak .matriks-scroll di-scroll ke bawah. Baris 1
+// nempel top:0 lewat CSS; baris 2 digeser JS sebesar tinggi baris 1 (nggak
+// bisa hardcode px karena tinggi baris tergantung font/zoom browser).
 function aturStickyHeaderMatriks() {
   const thead = document.getElementById('absensi-matriks-thead');
-  if (!thead || !thead.rows.length) return;
-  const headerTop = document.querySelector('header.top');
-  const topBase = headerTop ? headerTop.offsetHeight : 0;
-  const baris1 = thead.rows[0];
-  Array.from(baris1.cells).forEach(c => { c.style.top = topBase + 'px'; });
-  if (thead.rows[1]) {
-    const tinggiBaris1 = baris1.offsetHeight;
-    Array.from(thead.rows[1].cells).forEach(c => { c.style.top = (topBase + tinggiBaris1) + 'px'; });
-  }
+  if (!thead || !thead.rows.length || !thead.rows[1]) return;
+  const tinggiBaris1 = thead.rows[0].offsetHeight;
+  Array.from(thead.rows[1].cells).forEach(c => { c.style.top = tinggiBaris1 + 'px'; });
 }
 window.addEventListener('resize', aturStickyHeaderMatriks);
 
