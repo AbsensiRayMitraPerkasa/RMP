@@ -182,11 +182,20 @@
   .subtabs button{background:var(--navy-soft); border:1px solid var(--border); color:var(--muted); padding:7px 14px; border-radius:99px; cursor:pointer; font-size:13px; font-weight:600;}
   .subtabs button.active{color:var(--navy); border-color:var(--navy); background:#fff;}
 
-  .tabel-matriks-absensi th,.tabel-matriks-absensi td{white-space:nowrap; text-align:center; padding:6px 8px;}
+  .tabel-matriks-absensi{table-layout:fixed;}
+  .tabel-matriks-absensi th,.tabel-matriks-absensi td{white-space:nowrap; text-align:center; padding:6px 6px; overflow:hidden; text-overflow:ellipsis;}
   .tabel-matriks-absensi thead tr:last-child th{font-size:10.5px; color:var(--muted); text-transform:none;}
-  .tabel-matriks-absensi th:first-child,.tabel-matriks-absensi td:first-child{text-align:left; position:sticky; left:0; background:var(--card); z-index:2; min-width:150px;}
-  .tabel-matriks-absensi th:nth-child(2),.tabel-matriks-absensi td:nth-child(2){text-align:left; position:sticky; left:150px; background:var(--card); z-index:2; min-width:110px; box-shadow:2px 0 4px -2px rgba(16,30,54,.15);}
-  .tabel-matriks-absensi thead th{background:var(--card); z-index:3;}
+  .tabel-matriks-absensi th:first-child,.tabel-matriks-absensi td:first-child{text-align:left; position:sticky; left:0; background:var(--card); z-index:2;}
+  .tabel-matriks-absensi th:nth-child(2),.tabel-matriks-absensi td:nth-child(2){text-align:left; position:sticky; left:180px; background:var(--card); z-index:2; box-shadow:2px 0 4px -2px rgba(16,30,54,.15);}
+  /* Header (NAMA/BAGIAN/tanggal/Masuk-Keluar) tetap kelihatan saat scroll ke
+     bawah - top diisi JS (aturStickyTopMatriks/muatMatriksAbsensi) sesuai
+     tinggi header.top yang juga sticky, 0 di sini cuma fallback. */
+  .tabel-matriks-absensi thead th{position:sticky; top:0; background:var(--card); z-index:4;}
+  .tabel-matriks-absensi thead th:first-child,.tabel-matriks-absensi thead th:nth-child(2){z-index:5;}
+  /* Garis pemisah lebih tegas antar tanggal (di kolom Keluar / sisi kanan tiap pasang Masuk-Keluar) */
+  .tabel-matriks-absensi thead tr:first-child th:nth-child(n+3){border-right:2px solid #b9c2d1;}
+  .tabel-matriks-absensi thead tr:last-child th:nth-child(2n){border-right:2px solid #b9c2d1;}
+  .tabel-matriks-absensi tbody td:nth-child(2n):not(:nth-child(2)){border-right:2px solid #b9c2d1;}
   .tabel-matriks-absensi td.sel-alpa{background:var(--red-bg); color:var(--red-text); font-size:11px;}
   .tabel-matriks-absensi td.sel-ijin{background:var(--tan); color:var(--tan-text); font-size:11px;}
 
@@ -414,6 +423,7 @@
         </div>
         <div class="table-scroll">
           <table class="tabel-matriks-absensi">
+            <colgroup id="absensi-matriks-colgroup"></colgroup>
             <thead id="absensi-matriks-thead"></thead>
             <tbody id="absensi-matriks-tbody"></tbody>
           </table>
@@ -1600,6 +1610,26 @@ function peringkatBagianMatriks(bagianKerja) {
   return idx === -1 ? 99 : idx;
 }
 
+// Header tabel Matriks (NAMA/BAGIAN/tanggal/Masuk-Keluar, 2 baris) harus tetap
+// kelihatan pas scroll halaman ke bawah. header.top sendiri sudah sticky
+// top:0 (lihat CSS), jadi baris 1 thead ditaruh persis di bawahnya (top =
+// tinggi header.top), baris 2 di bawah baris 1 (top = tinggi header.top +
+// tinggi baris 1). Dihitung dari offsetHeight asli, bukan hardcode px,
+// supaya tidak rusak kalau header.top melebar (wrap) di layar sempit.
+function aturStickyHeaderMatriks() {
+  const thead = document.getElementById('absensi-matriks-thead');
+  if (!thead || !thead.rows.length) return;
+  const headerTop = document.querySelector('header.top');
+  const topBase = headerTop ? headerTop.offsetHeight : 0;
+  const baris1 = thead.rows[0];
+  Array.from(baris1.cells).forEach(c => { c.style.top = topBase + 'px'; });
+  if (thead.rows[1]) {
+    const tinggiBaris1 = baris1.offsetHeight;
+    Array.from(thead.rows[1].cells).forEach(c => { c.style.top = (topBase + tinggiBaris1) + 'px'; });
+  }
+}
+window.addEventListener('resize', aturStickyHeaderMatriks);
+
 async function muatMatriksAbsensi() {
   const thead = document.getElementById('absensi-matriks-thead');
   const tbody = document.getElementById('absensi-matriks-tbody');
@@ -1626,23 +1656,36 @@ async function muatMatriksAbsensi() {
   const jumlahHari = new Date(filterTahun, filterBulan, 0).getDate();
   const tanggalList = Array.from({ length: jumlahHari }, (_, i) => i + 1);
 
+  // table-layout:fixed + colgroup eksplisit supaya lebar tiap kolom tanggal
+  // sama persis (sebelumnya kolom tanggal 01 melebar sendiri karena auto
+  // table layout browser tidak membagi rata sisa lebar antar 60+ kolom).
+  document.getElementById('absensi-matriks-colgroup').innerHTML =
+    '<col style="width:180px"><col style="width:120px">' +
+    tanggalList.map(() => '<col style="width:70px"><col style="width:70px">').join('');
+
   thead.innerHTML =
     '<tr><th rowspan="2">Nama</th><th rowspan="2">Bagian</th>' +
       tanggalList.map(d => '<th colspan="2">' + String(d).padStart(2, '0') + '</th>').join('') +
     '</tr><tr>' +
       tanggalList.map(() => '<th>Masuk</th><th>Keluar</th>').join('') +
     '</tr>';
+  aturStickyHeaderMatriks();
 
   const totalKolom = 2 + tanggalList.length * 2;
+  // Selalu render 2 <td> terpisah per tanggal (bukan colspan=2 pas kosong) -
+  // supaya posisi nth-child tiap baris konsisten, karena garis pemisah tegas
+  // antar tanggal di CSS pakai selector nth-child(2n) yang butuh jumlah <td>
+  // sama rata di semua baris (colspan dihitung 1 anak DOM, bikin nth-child
+  // tiap baris geser beda-beda kalau dicampur).
   const renderBarisMatriks = k => {
     const sel = tanggalList.map(d => {
       const tgl = filterTahun + '-' + String(filterBulan).padStart(2, '0') + '-' + String(d).padStart(2, '0');
       const r = absensiMap[k.nama + '|' + tgl];
       if (r && r.jamMasuk) return '<td class="mono">' + r.jamMasuk + '</td><td class="mono">' + (r.jamKeluar || '-') + '</td>';
-      if (ijinSet.has(k.nama + '|' + tgl)) return '<td colspan="2" class="sel-ijin">IJIN</td>';
-      return '<td colspan="2" class="sel-alpa" title="Tidak ada absen (Alpa)"></td>';
+      if (ijinSet.has(k.nama + '|' + tgl)) return '<td class="sel-ijin">IJIN</td><td class="sel-ijin"></td>';
+      return '<td class="sel-alpa" title="Tidak ada absen (Alpa)"></td><td class="sel-alpa"></td>';
     }).join('');
-    return '<tr><td>' + namaStatusHtml(k.nama, k.status) + '</td><td class="muted">' + k.bagianKerja + '</td>' + sel + '</tr>';
+    return '<tr><td title="' + k.nama + '">' + namaStatusHtml(k.nama, k.status) + '</td><td class="muted" title="' + k.bagianKerja + '">' + k.bagianKerja + '</td>' + sel + '</tr>';
   };
   tbody.innerHTML = daftarKaryawan.length
     ? gabungDenganPemisah(daftarKaryawan, totalKolom, renderBarisMatriks, 'Karyawan Nonaktif')
