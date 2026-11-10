@@ -378,6 +378,18 @@
   }
   .toast.ok{border-left:4px solid var(--green);}
   .toast.err{border-left:4px solid var(--red);}
+
+  .banner-instal{
+    position:fixed; left:16px; right:16px; top:16px; max-width:452px; margin:0 auto;
+    background:var(--navy); color:#fff; border-radius:var(--radius-sm);
+    padding:12px 14px; display:flex; align-items:center; gap:10px; z-index:80;
+    box-shadow:0 8px 24px rgba(16,30,54,.25);
+  }
+  .banner-instal .teks{flex:1; font-size:13.5px; line-height:1.35;}
+  .banner-instal .teks b{display:block; font-size:14px; margin-bottom:2px;}
+  .banner-instal button{border:none; border-radius:8px; cursor:pointer; font-weight:600;}
+  .banner-instal .btn-pasang{background:#fff; color:var(--navy); padding:8px 14px; font-size:13.5px;}
+  .banner-instal .btn-tutup{background:transparent; color:rgba(255,255,255,.75); font-size:20px; line-height:1; padding:4px 6px;}
 </style>
 </head>
 <body>
@@ -969,6 +981,12 @@
 </section>
 
 <div id="toast" class="toast hidden"></div>
+
+<div id="banner-instal" class="banner-instal hidden">
+  <div class="teks"><b>Pasang Absensi RAY</b>Supaya lebih cepat dibuka, pasang aplikasi ini ke layar utama HP Anda.</div>
+  <button class="btn-pasang" id="btn-pasang-app">Pasang</button>
+  <button class="btn-tutup" id="btn-tutup-banner-instal" aria-label="Tutup">&times;</button>
+</div>
 
 <nav class="navbar hidden" id="navbar">
   <button data-nav="home"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg></span><span class="lb">Dashboard</span></button>
@@ -3102,6 +3120,34 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
   window.addEventListener('load', () => { prosesAntrianOffline().catch(() => {}); });
 }
+</script>
+<script>
+// Chrome Android kadang tidak menampilkan menu "Install app" bawaan walau
+// syarat terpenuhi. Tampung event beforeinstallprompt lalu tawarkan lewat
+// tombol kita sendiri -- ini SATU-SATUNYA cara sah memicu dialog instal dari
+// JS, tidak bisa dipaksa tanpa event ini (dan event ini hanya dikirim Chrome
+// kalau browser sendiri sudah menilai halaman installable).
+var promptInstalTertunda = null;
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault();
+  promptInstalTertunda = e;
+  var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!standalone) document.getElementById('banner-instal').classList.remove('hidden');
+});
+document.getElementById('btn-pasang-app').addEventListener('click', async function () {
+  document.getElementById('banner-instal').classList.add('hidden');
+  if (!promptInstalTertunda) return;
+  promptInstalTertunda.prompt();
+  await promptInstalTertunda.userChoice.catch(() => {});
+  promptInstalTertunda = null;
+});
+document.getElementById('btn-tutup-banner-instal').addEventListener('click', function () {
+  document.getElementById('banner-instal').classList.add('hidden');
+});
+window.addEventListener('appinstalled', function () {
+  document.getElementById('banner-instal').classList.add('hidden');
+  promptInstalTertunda = null;
+});
 </script>
 </body>
 </html>
