@@ -2920,6 +2920,12 @@ function barisKeSel(baris) {
   return s.split('|').map((c) => c.trim());
 }
 
+// AI sering menjawab pakai **tebal** gaya markdown; escapeHtml tidak menyentuh
+// karakter "*" jadi tanpa ini tampil sebagai asterisk literal di chat.
+function mdTebalKeHtml(teksSudahDiescape) {
+  return teksSudahDiescape.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+}
+
 function aiTeksKeHtml(teks) {
   const baris = teks.replace(/\r\n/g, '\n').split('\n');
   let html = '';
@@ -2937,12 +2943,12 @@ function aiTeksKeHtml(teks) {
         i++;
       }
       html += '<div class="chat-table-wrap"><table class="chat-table"><thead><tr>' +
-        header.map((c) => '<th>' + escapeHtml(c) + '</th>').join('') +
+        header.map((c) => '<th>' + mdTebalKeHtml(escapeHtml(c)) + '</th>').join('') +
         '</tr></thead><tbody>' +
-        rows.map((r) => '<tr>' + r.map((c) => '<td>' + escapeHtml(c) + '</td>').join('') + '</tr>').join('') +
+        rows.map((r) => '<tr>' + r.map((c) => '<td>' + mdTebalKeHtml(escapeHtml(c)) + '</td>').join('') + '</tr>').join('') +
         '</tbody></table></div>';
     } else {
-      html += escapeHtml(l) + (i < baris.length - 1 ? '<br>' : '');
+      html += mdTebalKeHtml(escapeHtml(l)) + (i < baris.length - 1 ? '<br>' : '');
       i++;
     }
   }
