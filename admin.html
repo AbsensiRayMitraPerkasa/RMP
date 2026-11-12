@@ -506,6 +506,16 @@
           </table>
         </div>
       </div>
+      <div class="panel">
+        <div class="section-title">Riwayat Kegiatan Cleaning Service (Detail)</div>
+        <p class="muted" style="font-size:12.5px; margin-top:-6px;">Setiap laporan kegiatan cleaning pada bulan &amp; tahun yang difilter di atas, lengkap dengan area/tugas, akurasi GPS, catatan, dan foto sebelum/sesudah &mdash; sama seperti Riwayat Patroli Security.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Tanggal</th><th>Nama</th><th>Tugas</th><th>Area</th><th>Jam</th><th>Akurasi GPS</th><th>Catatan</th><th>Foto Sebelum</th><th>Foto Sesudah</th></tr></thead>
+            <tbody id="cleaning-detail-table"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
 
@@ -1145,6 +1155,7 @@ function muatSemuaDashboard() {
   muatRiwayatPatroliDetail();
   muatRingkasanHarianPatroli();
   muatDashboardOperasional('ambilDashboardCleaning', 'cleaning-stats', 'cleaning-table');
+  muatRiwayatKegiatanDetail();
   if (KLIEN_LAPORAN_KEJADIAN_DIIZINKAN.includes(KODE_KLIEN)) { muatDashboardKejadian(); muatRiwayatKejadianDetail(); }
 }
 
@@ -1516,6 +1527,26 @@ async function muatRiwayatPatroliDetail() {
       '<td>' + (r.fotoUrl ? '<a href="' + r.fotoUrl + '" target="_blank" rel="noopener"><img class="foto-thumb" src="' + r.fotoUrl + '" alt="Foto patroli ' + r.nama + '" loading="lazy"></a>' : '-') + '</td>' +
     '</tr>';
   tbody.innerHTML = daftar.length ? gabungDenganPemisah(daftar, 7, renderBaris, 'Karyawan Nonaktif') : '<tr><td colspan="7" class="muted">Belum ada data patroli pada periode ini.</td></tr>';
+}
+
+async function muatRiwayatKegiatanDetail() {
+  const tbody = document.getElementById('cleaning-detail-table');
+  const res = await api('daftarKegiatanDetailAdmin', { password: adminPassword, bulan: filterBulan, tahun: filterTahun });
+  if (!res.sukses) { tbody.innerHTML = '<tr><td colspan="9" class="muted">' + res.pesan + '</td></tr>'; return; }
+  const daftar = res.daftar || [];
+  const renderBaris = r =>
+    '<tr>' +
+      '<td class="mono">' + r.tanggal + '</td>' +
+      '<td>' + namaStatusHtml(r.nama, r.status) + '</td>' +
+      '<td>' + r.tugas + '</td>' +
+      '<td>' + r.area + '</td>' +
+      '<td class="mono">' + r.waktu + '</td>' +
+      '<td class="mono">' + (r.akurasi != null ? ('±' + r.akurasi + ' m') : '-') + '</td>' +
+      '<td>' + (r.catatan || '-') + '</td>' +
+      '<td>' + (r.fotoSebelumUrl ? '<a href="' + r.fotoSebelumUrl + '" target="_blank" rel="noopener"><img class="foto-thumb" src="' + r.fotoSebelumUrl + '" alt="Foto sebelum ' + r.nama + '" loading="lazy"></a>' : '-') + '</td>' +
+      '<td>' + (r.fotoSesudahUrl ? '<a href="' + r.fotoSesudahUrl + '" target="_blank" rel="noopener"><img class="foto-thumb" src="' + r.fotoSesudahUrl + '" alt="Foto sesudah ' + r.nama + '" loading="lazy"></a>' : '-') + '</td>' +
+    '</tr>';
+  tbody.innerHTML = daftar.length ? gabungDenganPemisah(daftar, 9, renderBaris, 'Karyawan Nonaktif') : '<tr><td colspan="9" class="muted">Belum ada data kegiatan pada periode ini.</td></tr>';
 }
 
 async function muatRiwayatAbsensiDetail() {
