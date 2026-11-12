@@ -1105,7 +1105,8 @@ document.getElementById('lokasi-aktif-select').addEventListener('change', (e) =>
   localStorage.setItem(KOORDINATOR_SESSION_KEY, JSON.stringify(saved));
   perbaruiBrandingLokasiAktif(daftarLokasiKoordinator.find(l => l.id === klienIdAktif));
   muatSemuaDashboard();
-  if (document.getElementById('tab-penilaian').classList.contains('active')) muatPenilaian();
+  bagianPenilaianDiatur = false;
+  if (document.getElementById('tab-penilaian').classList.contains('active')) aturBagianPenilaianDefault().then(muatPenilaian);
   if (document.getElementById('tab-persetujuan').classList.contains('active')) muatPersetujuan();
 });
 document.getElementById('btn-terapkan-filter').addEventListener('click', () => {
@@ -1126,7 +1127,7 @@ document.getElementById('tabs').addEventListener('click', e => {
   if (btn.dataset.tab === 'persetujuan') muatPersetujuan();
   if (btn.dataset.tab === 'kelola') { muatKelola('karyawan'); initQrWeb(); }
   if (btn.dataset.tab === 'rekap') muatLokasiRekap();
-  if (btn.dataset.tab === 'penilaian') muatPenilaian();
+  if (btn.dataset.tab === 'penilaian') aturBagianPenilaianDefault().then(muatPenilaian);
 });
 
 document.querySelectorAll('.subtabs[data-target]').forEach(group => {
@@ -1863,6 +1864,31 @@ async function muatPenilaian() {
   }
 }
 document.getElementById('penilaian-bagian').addEventListener('change', muatPenilaian);
+
+// Dropdown "Bagian Kerja" di atas defaultnya "Security" (opsi pertama di <select>),
+// jadi klien yang stafnya semua Cleaning Service (atau bagian lain) akan selalu
+// lihat "Belum ada staf di bagian kerja ini." sampai mereka ganti dropdown manual.
+// Sekali per sesi/klien aktif, cek diam-diam bagian mana yang beneran ada stafnya
+// dan pindahkan dropdown ke situ (tidak mengganggu kalau user sudah pilih manual).
+let bagianPenilaianDiatur = false;
+async function aturBagianPenilaianDefault() {
+  if (bagianPenilaianDiatur) return;
+  bagianPenilaianDiatur = true;
+  try {
+    const res = await api('getDaftarKaryawanAdmin', { password: adminPassword });
+    if (!res.sukses) return;
+    const hitung = {};
+    for (const k of (res.daftar || [])) {
+      if (k.status === 'nonaktif') continue;
+      hitung[k.bagianKerja] = (hitung[k.bagianKerja] || 0) + 1;
+    }
+    if (!hitung['Security'] && Object.keys(hitung).length) {
+      const terbanyak = Object.entries(hitung).sort((a, b) => b[1] - a[1])[0][0];
+      const sel = document.getElementById('penilaian-bagian');
+      if (sel && [...sel.options].some(o => o.value === terbanyak)) sel.value = terbanyak;
+    }
+  } catch (e) { /* abaikan, biarkan default Security */ }
+}
 
 async function muatPersetujuan() {
   if (!peran) return;
